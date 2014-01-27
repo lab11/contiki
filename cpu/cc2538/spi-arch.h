@@ -71,6 +71,12 @@ void spi_enable(void);
  */
 void spi_disable(void);
 
+/** \brief Configures a pin as the CSn pin
+ * \note Call this function to change which pin the SPI engine uses as the
+ * chip select.
+ */
+void spi_configure_cs(int port, int pin);
+
 /** @} */
 
 #endif /* SPI_ARCH_H_ */

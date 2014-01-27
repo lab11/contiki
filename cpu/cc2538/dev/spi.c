@@ -48,8 +48,6 @@
 #define SPI_MOSI_PIN_MASK        GPIO_PIN_MASK(SPI_MOSI_PIN)
 #define SPI_MISO_PORT_BASE       GPIO_PORT_TO_BASE(SPI_MISO_PORT)
 #define SPI_MISO_PIN_MASK        GPIO_PIN_MASK(SPI_MISO_PIN)
-#define SPI_SEL_PORT_BASE        GPIO_PORT_TO_BASE(SPI_SEL_PORT)
-#define SPI_SEL_PIN_MASK         GPIO_PIN_MASK(SPI_SEL_PIN)
 
 /* Default: Motorola mode 3 with 8-bit data words */
 #ifndef SPI_CONF_PHASE
@@ -95,19 +93,16 @@ spi_init(void)
   ioc_set_sel(SPI_CLK_PORT, SPI_CLK_PIN, IOC_PXX_SEL_SSI0_CLKOUT);
   ioc_set_sel(SPI_MOSI_PORT, SPI_MOSI_PIN, IOC_PXX_SEL_SSI0_TXD);
   REG(IOC_SSIRXD_SSI0) = (SPI_MISO_PORT * 8) + SPI_MISO_PIN;
-  ioc_set_sel(SPI_SEL_PORT, SPI_SEL_PIN, IOC_PXX_SEL_SSI0_FSSOUT);
 
   /* Put all the SSI gpios into peripheral mode */
   GPIO_PERIPHERAL_CONTROL(SPI_CLK_PORT_BASE, SPI_CLK_PIN_MASK);
   GPIO_PERIPHERAL_CONTROL(SPI_MOSI_PORT_BASE, SPI_MOSI_PIN_MASK);
   GPIO_PERIPHERAL_CONTROL(SPI_MISO_PORT_BASE, SPI_MISO_PIN_MASK);
-  GPIO_PERIPHERAL_CONTROL(SPI_SEL_PORT_BASE, SPI_SEL_PIN_MASK);
 
   /* Disable any pull ups or the like */
   ioc_set_over(SPI_CLK_PORT, SPI_CLK_PIN, IOC_OVERRIDE_DIS);
   ioc_set_over(SPI_MOSI_PORT, SPI_MOSI_PIN, IOC_OVERRIDE_DIS);
   ioc_set_over(SPI_MISO_PORT, SPI_MISO_PIN, IOC_OVERRIDE_DIS);
-  ioc_set_over(SPI_SEL_PORT, SPI_SEL_PIN, IOC_OVERRIDE_DIS);
 
   /* Configure the clock */
   REG(SSI0_BASE + SSI_CPSR) = 2;
@@ -131,5 +126,16 @@ spi_disable(void)
 {
   /* Gate the clock for the SSI peripheral */
   REG(SYS_CTRL_RCGCSSI) &= ~1;
+}
+/*---------------------------------------------------------------------------*/
+void
+spi_configure_cs(int port, int pin)
+{
+  /* Map the port to the frame pin for ssi0 */
+  ioc_set_sel(port, pin, IOC_PXX_SEL_SSI0_FSSOUT);
+  /* Put the GPIO in peripheral mode */
+  GPIO_PERIPHERAL_CONTROL(GPIO_PORT_TO_BASE(port), GPIO_PIN_MASK(pin));
+  /* Disable any pull ups or the like */
+  ioc_set_over(port, pin, IOC_OVERRIDE_DIS);
 }
 /** @} */
