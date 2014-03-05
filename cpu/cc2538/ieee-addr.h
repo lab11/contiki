@@ -53,6 +53,7 @@
  * @{
  */
 #define IEEE_ADDR_LOCATION_PRIMARY   0x00280028 /**< IEEE address location */
+#define IEEE_ADDR_LOCATION_SECONDARY 0x0027FFCC /**< IEEE address location */
 /** @} */
 /*---------------------------------------------------------------------------*/
 /*
