@@ -52,9 +52,9 @@
  * FOR HC-06 COMPLIANCE TODO:
  * -Add compression options to UDP, currently only supports
  *  both ports compressed or both ports elided
- *  
+ *
  * -Verify TC/FL compression works
- *  
+ *
  * -Add stateless multicast option
  */
 
@@ -317,7 +317,7 @@ set_packet_attrs()
 
 /** Addresses contexts for IPHC. */
 #if SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS > 0
-static struct sicslowpan_addr_context 
+static struct sicslowpan_addr_context
 addr_contexts[SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS];
 #endif
 
@@ -381,9 +381,18 @@ addr_context_lookup_by_prefix(uip_ipaddr_t *ipaddr)
 static struct sicslowpan_addr_context*
 addr_context_lookup_by_number(uint8_t number)
 {
-/* Remove code to avoid warnings and save flash if no context is used */ 
+/* Remove code to avoid warnings and save flash if no context is used */
 #if SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS > 0
+  uip_ipaddr_t me, dummy;
   int i;
+
+  dummy.u16[0] = 0x2000;
+
+  uip_ds6_select_src(&me, &dummy);
+  memcpy(&addr_contexts[0].prefix, &me, 8);
+  addr_contexts[0].used = 1;
+  return &addr_contexts[0];
+
   for(i = 0; i < SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS; i++) {
     if((addr_contexts[i].used == 1) &&
        addr_contexts[i].number == number) {
@@ -540,11 +549,11 @@ compress_hdr_hc06(linkaddr_t *link_destaddr)
    * We have to process both in the same time as the offset of traffic class
    * depends on the presence of version and flow label
    */
- 
+
   /* hc06 format of tc is ECN | DSCP , original is DSCP | ECN */
   tmp = (UIP_IP_BUF->vtc << 4) | (UIP_IP_BUF->tcflow >> 4);
   tmp = ((tmp & 0x03) << 6) | (tmp >> 2);
-  
+
   if(((UIP_IP_BUF->tcflow & 0x0F) == 0) &&
      (UIP_IP_BUF->flow == 0)) {
     /* flow label can be compressed */
@@ -585,7 +594,7 @@ compress_hdr_hc06(linkaddr_t *link_destaddr)
     iphc0 |= SICSLOWPAN_IPHC_NH_C;
   }
 #endif /*UIP_CONF_UDP*/
-#ifdef SICSLOWPAN_NH_COMPRESSOR 
+#ifdef SICSLOWPAN_NH_COMPRESSOR
   if(SICSLOWPAN_NH_COMPRESSOR.is_compressable(UIP_IP_BUF->proto)) {
     iphc0 |= SICSLOWPAN_IPHC_NH_C;
   }
@@ -1000,7 +1009,7 @@ uncompress_hdr_hc06(uint16_t ip_len)
   }
 
   packetbuf_hdr_len = hc06_ptr - packetbuf_ptr;
-  
+
   /* IP length field. */
   if(ip_len == 0) {
     int len = packetbuf_datalen() - packetbuf_hdr_len + uncomp_hdr_len - UIP_IPH_LEN;
@@ -1012,7 +1021,7 @@ uncompress_hdr_hc06(uint16_t ip_len)
     SICSLOWPAN_IP_BUF->len[0] = (ip_len - UIP_IPH_LEN) >> 8;
     SICSLOWPAN_IP_BUF->len[1] = (ip_len - UIP_IPH_LEN) & 0x00FF;
   }
-  
+
   /* length field in UDP header */
   if(SICSLOWPAN_IP_BUF->proto == UIP_PROTO_UDP) {
     memcpy(&SICSLOWPAN_UDP_BUF->udplen, &SICSLOWPAN_IP_BUF->len[0], 2);
@@ -1144,7 +1153,7 @@ compress_hdr_hc1(linkaddr_t *link_destaddr)
            UIP_HTONS(UIP_UDP_BUF->destport) <  SICSLOWPAN_UDP_PORT_MAX) {
           /* HC1 encoding */
           PACKETBUF_HC1_HC_UDP_PTR[PACKETBUF_HC1_HC_UDP_HC1_ENCODING] = 0xFB;
-        
+
           /* HC_UDP encoding, ttl, src and dest ports, checksum */
           PACKETBUF_HC1_HC_UDP_PTR[PACKETBUF_HC1_HC_UDP_UDP_ENCODING] = 0xE0;
           PACKETBUF_HC1_HC_UDP_PTR[PACKETBUF_HC1_HC_UDP_TTL] = UIP_IP_BUF->ttl;
@@ -1192,7 +1201,7 @@ uncompress_hdr_hc1(uint16_t ip_len)
   SICSLOWPAN_IP_BUF->vtc = 0x60;
   SICSLOWPAN_IP_BUF->tcflow = 0;
   SICSLOWPAN_IP_BUF->flow = 0;
-  
+
   /* src and dest ip addresses */
   uip_ip6addr(&SICSLOWPAN_IP_BUF->srcipaddr, 0xfe80, 0, 0, 0, 0, 0, 0, 0);
   uip_ds6_set_addr_iid(&SICSLOWPAN_IP_BUF->srcipaddr,
@@ -1200,9 +1209,9 @@ uncompress_hdr_hc1(uint16_t ip_len)
   uip_ip6addr(&SICSLOWPAN_IP_BUF->destipaddr, 0xfe80, 0, 0, 0, 0, 0, 0, 0);
   uip_ds6_set_addr_iid(&SICSLOWPAN_IP_BUF->destipaddr,
 		       (uip_lladdr_t *)packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-  
+
   uncomp_hdr_len += UIP_IPH_LEN;
-  
+
   /* Next header field */
   switch(PACKETBUF_HC1_PTR[PACKETBUF_HC1_ENCODING] & 0x06) {
     case SICSLOWPAN_HC1_NH_ICMP6:
@@ -1248,7 +1257,7 @@ uncompress_hdr_hc1(uint16_t ip_len)
       /* this shouldn't happen, drop */
       return;
   }
-  
+
   /* IP length field. */
   if(ip_len == 0) {
     int len = packetbuf_datalen() - packetbuf_hdr_len + uncomp_hdr_len - UIP_IPH_LEN;
@@ -1413,7 +1422,7 @@ output(const uip_lladdr_t *localdest)
   } else {
     linkaddr_copy(&dest, (const linkaddr_t *)localdest);
   }
-  
+
   PRINTFO("sicslowpan output: sending packet len %d\n", uip_len);
 
   if(uip_len >= COMPRESSION_THRESHOLD) {
@@ -1513,7 +1522,7 @@ output(const uip_lladdr_t *localdest)
 
     /* set processed_ip_out_len to what we already sent from the IP payload*/
     processed_ip_out_len = packetbuf_payload_len + uncomp_hdr_len;
-    
+
     /*
      * Create following fragments
      * Datagram tag is already in the buffer, we need to set the
@@ -1528,7 +1537,7 @@ output(const uip_lladdr_t *localdest)
     while(processed_ip_out_len < uip_len) {
       PRINTFO("sicslowpan output: fragment ");
       PACKETBUF_FRAG_PTR[PACKETBUF_FRAG_OFFSET] = processed_ip_out_len >> 3;
-      
+
       /* Copy payload and send */
       if(uip_len - processed_ip_out_len < packetbuf_payload_len) {
         /* last fragment */
@@ -1760,8 +1769,8 @@ input(void)
              PACKETBUF_HC1_PTR[PACKETBUF_HC1_DISPATCH]);
       return;
   }
-   
-    
+
+
 #if SICSLOWPAN_CONF_FRAG
  copypayload:
 #endif /*SICSLOWPAN_CONF_FRAG*/
@@ -1792,7 +1801,7 @@ input(void)
   }
 
   memcpy((uint8_t *)SICSLOWPAN_IP_BUF + uncomp_hdr_len + (uint16_t)(frag_offset << 3), packetbuf_ptr + packetbuf_hdr_len, packetbuf_payload_len);
-  
+
   /* update processed_ip_in_len if fragment, sicslowpan_len otherwise */
 
 #if SICSLOWPAN_CONF_FRAG
@@ -1874,13 +1883,13 @@ sicslowpan_init(void)
  * The platform contiki-conf.h file can override this using e.g.
  * #define SICSLOWPAN_CONF_ADDR_CONTEXT_0 {addr_contexts[0].prefix[0]=0xbb;addr_contexts[0].prefix[1]=0xbb;}
  */
-#if SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS > 0 
+#if SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS > 0
   addr_contexts[0].used   = 1;
   addr_contexts[0].number = 0;
 #ifdef SICSLOWPAN_CONF_ADDR_CONTEXT_0
 	SICSLOWPAN_CONF_ADDR_CONTEXT_0;
 #else
-  addr_contexts[0].prefix[0] = 0xaa; 
+  addr_contexts[0].prefix[0] = 0xaa;
   addr_contexts[0].prefix[1] = 0xaa;
 #endif
 #endif /* SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS > 0 */
@@ -1902,7 +1911,7 @@ sicslowpan_init(void)
 #endif
       } else {
         addr_contexts[i].used = 0;
-      }	  
+      }
 #else
       addr_contexts[i].used = 0;
 #endif /* SICSLOWPAN_CONF_ADDR_CONTEXT_1 */
