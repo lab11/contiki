@@ -123,6 +123,8 @@ static const uint8_t magic[] = { 0x53, 0x6E, 0x69, 0x66 };      /** Snif */
 /*---------------------------------------------------------------------------*/
 static uint8_t rf_flags;
 
+uint8_t last_length = 0;
+
 static int on(void);
 static int off(void);
 /*---------------------------------------------------------------------------*/
@@ -331,7 +333,8 @@ init(void)
   cc2538_rf_channel_set(CC2538_RF_CHANNEL);
 
   /* Acknowledge RF interrupts, FIFOP only */
-  REG(RFCORE_XREG_RFIRQM0) |= RFCORE_XREG_RFIRQM0_FIFOP;
+  // add in sfd
+  REG(RFCORE_XREG_RFIRQM0) |= RFCORE_XREG_RFIRQM0_FIFOP | RFCORE_XREG_RFIRQM0_SFD;
   nvic_interrupt_enable(NVIC_INT_RF_RXTX);
 
   /* Acknowledge all RF Error interrupts */
@@ -392,6 +395,8 @@ prepare(const void *payload, unsigned short payload_len)
   /* Send the phy length byte first */
   REG(RFCORE_SFR_RFDATA) = payload_len + CHECKSUM_LEN;
 
+  last_length = payload_len + CHECKSUM_LEN;
+
   if(CC2538_RF_CONF_TX_USE_DMA) {
     PRINTF("<uDMA payload>");
 
@@ -415,6 +420,7 @@ prepare(const void *payload, unsigned short payload_len)
      * faster than transmit() can empty it
      */
   } else {
+
     for(i = 0; i < payload_len; i++) {
       REG(RFCORE_SFR_RFDATA) = ((unsigned char *)(payload))[i];
       PRINTF("%02x", ((unsigned char *)(payload))[i]);
@@ -474,6 +480,8 @@ transmit(unsigned short transmit_len)
   } else {
     /* Wait for the transmission to finish */
     while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
+    // once the packet is txed we dont want to use any more sfd interrupts
+      last_length = 0;
     ret = RADIO_TX_OK;
   }
   ENERGEST_OFF(ENERGEST_TYPE_TRANSMIT);
@@ -700,12 +708,59 @@ PROCESS_THREAD(cc2538_rf_process, ev, data)
 void
 cc2538_rf_rx_tx_isr(void)
 {
+  uint32_t irq_reg;
+  uint32_t sfd_cap;
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
-  process_poll(&cc2538_rf_process);
-
+  irq_reg = REG(RFCORE_SFR_RFIRQF0);
   /* We only acknowledge FIFOP so we can safely wipe out the entire SFR */
   REG(RFCORE_SFR_RFIRQF0) = 0;
+
+  if (irq_reg & RFCORE_XREG_RFIRQM0_SFD) {
+    sfd_cap = ((REG(RFCORE_SFR_MTM1) & 0xFF) << 8) | (REG(RFCORE_SFR_MTM0) & 0xFF);
+    if (last_length == 0x51 &&
+      (REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE)
+
+
+      //&&
+     /* (REG(0x40088247) == 0xaa) ||
+      (REG(0x40088248) == 0xaa) ||
+      (REG(0x40088249) == 0xaa) ||
+      (REG(0x4008824a) == 0xaa) ||
+      (REG(0x4008824b) == 0xaa) ||
+      (REG(0x4008824c) == 0xaa) ||
+      (REG(0x4008824d) == 0xaa) ||
+      (REG(0x4008824e) == 0xaa) ||
+      (((REG(0x40088203)&0xFF) == 0x4e) ||
+      ((REG(0x40088204)&0xFF) == 0x4e) ||
+      ((REG(0x40088205)&0xFF) == 0x4e) ||
+      ((REG(0x40088202)&0xFF) == 0x4e) ||
+      ((REG(0x40088206)&0xFF) == 0x4e) ||
+      ((REG(0x40088207)&0xFF) == 0x4e) ||
+      ((REG(0x40088208)&0xFF) == 0x4e) ||
+      ((REG(0x40088209)&0xFF) == 0x4e))*/
+      ) {
+
+      REG(0x40088328) = 0x3e;
+      REG(0x4008832c) = 0x3e;
+
+      REG(0x40088338) = 0xc1;
+      REG(0x4008833c) = 0xc1;
+
+      //REG(0x400881F4) = 0;
+
+    //  REG(0x400881F4) = uip_udpchksum();
+
+      last_length = 0;
+      leds_toggle(LEDS_GREEN);
+    }
+  }
+
+  if (irq_reg & RFCORE_XREG_RFIRQM0_FIFOP) {
+    process_poll(&cc2538_rf_process);
+  }
+
+
 
   ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
