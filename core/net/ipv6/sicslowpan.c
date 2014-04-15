@@ -71,7 +71,7 @@
 
 #include <stdio.h>
 
-#define DEBUG DEBUG_NONE
+#define DEBUG DEBUG_FULL
 #include "net/ip/uip-debug.h"
 #if DEBUG
 /* PRINTFI and PRINTFO are defined for input and output to debug one without changing the timing of the other */
@@ -789,10 +789,13 @@ compress_hdr_hc06(linkaddr_t *link_destaddr)
  * is then inferred from the L2 length), non 0 if the packet is a 1st
  * fragment.
  */
-static void
+static uint8_t
 uncompress_hdr_hc06(uint16_t ip_len)
 {
   uint8_t tmp, iphc0, iphc1;
+
+  uint8_t context_compression_used = 0;
+
   /* at least two byte will be used for the encoding */
   hc06_ptr = packetbuf_ptr + packetbuf_hdr_len + 2;
 
@@ -874,13 +877,15 @@ uncompress_hdr_hc06(uint16_t ip_len)
       context = addr_context_lookup_by_number(sci);
       if(context == NULL) {
         PRINTF("sicslowpan uncompress_hdr: error context not found\n");
-        return;
+        return context_compression_used;
       }
     }
     /* if tmp == 0 we do not have a context and therefore no prefix */
     uncompress_addr(&SICSLOWPAN_IP_BUF->srcipaddr,
                     tmp != 0 ? context->prefix : NULL, unc_ctxconf[tmp],
                     (uip_lladdr_t *)packetbuf_addr(PACKETBUF_ADDR_SENDER));
+
+    context_compression_used = 1;
   } else {
     /* no compression and link local */
     uncompress_addr(&SICSLOWPAN_IP_BUF->srcipaddr, llprefix, unc_llconf[tmp],
@@ -922,7 +927,7 @@ uncompress_hdr_hc06(uint16_t ip_len)
       /* all valid cases below need the context! */
       if(context == NULL) {
 	PRINTF("sicslowpan uncompress_hdr: error context not found\n");
-	return;
+	return context_compression_used;
       }
       uncompress_addr(&SICSLOWPAN_IP_BUF->destipaddr, context->prefix,
                       unc_ctxconf[tmp],
@@ -988,7 +993,7 @@ uncompress_hdr_hc06(uint16_t ip_len)
 
       default:
 	PRINTF("sicslowpan uncompress_hdr: error unsupported UDP compression\n");
-	return;
+	return context_compression_used;
       }
       if(!checksum_compressed) { /* has_checksum, default  */
 	memcpy(&SICSLOWPAN_UDP_BUF->udpchksum, hc06_ptr, 2);
@@ -1025,7 +1030,7 @@ uncompress_hdr_hc06(uint16_t ip_len)
     memcpy(&SICSLOWPAN_UDP_BUF->udplen, &SICSLOWPAN_IP_BUF->len[0], 2);
   }
 
-  return;
+  return context_compression_used;
 }
 /** @} */
 #endif /* SICSLOWPAN_COMPRESSION == SICSLOWPAN_COMPRESSION_HC06 */
@@ -1336,6 +1341,7 @@ send_packet(linkaddr_t *dest)
    * packetbuf attribute. The MAC layer can access the destination
    * address with the function packetbuf_addr(PACKETBUF_ADDR_RECEIVER).
    */
+
   packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, dest);
 
 #if NETSTACK_CONF_BRIDGE_MODE
@@ -1573,6 +1579,17 @@ output(const uip_lladdr_t *localdest)
      * The packet does not need to be fragmented
      * copy "payload" and send
      */
+    PRINTF("sicslowpan: send_packet\n");
+#if DEBUG
+  { uint16_t ndx;
+    PRINTF("raw pkt on wire ");
+    for(ndx = 0; ndx < uip_len - uncomp_hdr_len; ndx++) {
+      uint8_t data = ((uint8_t *)UIP_IP_BUF + uncomp_hdr_len)[ndx];
+      PRINTF("%02x", data);
+    }
+    PRINTF("\n");
+  }
+#endif
     memcpy(packetbuf_ptr + packetbuf_hdr_len, (uint8_t *)UIP_IP_BUF + uncomp_hdr_len,
            uip_len - uncomp_hdr_len);
     packetbuf_set_datalen(uip_len - uncomp_hdr_len + packetbuf_hdr_len);
@@ -1607,6 +1624,8 @@ input(void)
   uint16_t frag_tag = 0;
   uint8_t first_fragment = 0, last_fragment = 0;
 #endif /*SICSLOWPAN_CONF_FRAG*/
+
+  uint8_t recalculate_checksum = 0;
 
   /* init */
   uncomp_hdr_len = 0;
@@ -1738,7 +1757,7 @@ input(void)
 #if SICSLOWPAN_COMPRESSION == SICSLOWPAN_COMPRESSION_HC06
   if((PACKETBUF_HC1_PTR[PACKETBUF_HC1_DISPATCH] & 0xe0) == SICSLOWPAN_DISPATCH_IPHC) {
     PRINTFI("sicslowpan input: IPHC\n");
-    uncompress_hdr_hc06(frag_size);
+    recalculate_checksum = uncompress_hdr_hc06(frag_size);
   } else
 #endif /* SICSLOWPAN_COMPRESSION == SICSLOWPAN_COMPRESSION_HC06 */
     switch(PACKETBUF_HC1_PTR[PACKETBUF_HC1_DISPATCH]) {
@@ -1835,6 +1854,20 @@ input(void)
     sicslowpan_len = 0;
     processed_ip_in_len = 0;
 #endif /* SICSLOWPAN_CONF_FRAG */
+
+
+    // If we used context based expansion we may need to recalculate the UDP
+    // checksum because the transmitter didn't know its full address.
+    if (recalculate_checksum) {
+      PRINTF("sicslowpan: recalculate UDP checksum\n");
+      struct uip_udpip_hdr *hdr = (struct uip_udpip_hdr*) UIP_IP_BUF;
+
+      if (hdr->proto == UIP_PROTO_UDP) {
+        hdr->udpchksum = 0;
+        hdr->udpchksum = ~(uip_udpchksum());
+      }
+    }
+
 
 #if DEBUG
     {

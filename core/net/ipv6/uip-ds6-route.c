@@ -66,7 +66,7 @@ LIST(notificationlist);
 static int num_routes = 0;
 
 #undef DEBUG
-#define DEBUG DEBUG_NONE
+#define DEBUG DEBUG_FULL
 #include "net/ip/uip-debug.h"
 
 static void rm_routelist_callback(nbr_table_item_t *ptr);
@@ -224,6 +224,8 @@ uip_ds6_route_lookup(uip_ipaddr_t *addr)
     PRINT6ADDR(addr);
     PRINTF(" via ");
     PRINT6ADDR(uip_ds6_route_nexthop(found_route));
+    PRINTF(" via ");
+    PRINTLLADDR(uip_ds6_route_nexthop_lladdr(found_route));
     PRINTF("\n");
   } else {
     PRINTF("uip-ds6-route: No route found\n");

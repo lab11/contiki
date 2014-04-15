@@ -50,6 +50,9 @@
 #include "dev/udma.h"
 #include "reg.h"
 
+
+//#include "dev/mac_timer.h"
+
 #include <string.h>
 /*---------------------------------------------------------------------------*/
 #define CHECKSUM_LEN 2
@@ -709,7 +712,6 @@ void
 cc2538_rf_rx_tx_isr(void)
 {
   uint32_t irq_reg;
-  uint32_t sfd_cap;
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
   irq_reg = REG(RFCORE_SFR_RFIRQF0);
@@ -717,39 +719,32 @@ cc2538_rf_rx_tx_isr(void)
   REG(RFCORE_SFR_RFIRQF0) = 0;
 
   if (irq_reg & RFCORE_XREG_RFIRQM0_SFD) {
-    sfd_cap = ((REG(RFCORE_SFR_MTM1) & 0xFF) << 8) | (REG(RFCORE_SFR_MTM0) & 0xFF);
-    if (last_length == 0x51 &&
-      (REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE)
+    //uint64_t sfd_time = mac_timer_get_sfd();
+    uint64_t sfd_time = 0;
 
+    if ((REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE) // currently TX
+        && last_length > 0
+        && REG(0x40088200 + ((last_length-2)*4)) == 0xF0
+        ) {
 
-      //&&
-     /* (REG(0x40088247) == 0xaa) ||
-      (REG(0x40088248) == 0xaa) ||
-      (REG(0x40088249) == 0xaa) ||
-      (REG(0x4008824a) == 0xaa) ||
-      (REG(0x4008824b) == 0xaa) ||
-      (REG(0x4008824c) == 0xaa) ||
-      (REG(0x4008824d) == 0xaa) ||
-      (REG(0x4008824e) == 0xaa) ||
-      (((REG(0x40088203)&0xFF) == 0x4e) ||
-      ((REG(0x40088204)&0xFF) == 0x4e) ||
-      ((REG(0x40088205)&0xFF) == 0x4e) ||
-      ((REG(0x40088202)&0xFF) == 0x4e) ||
-      ((REG(0x40088206)&0xFF) == 0x4e) ||
-      ((REG(0x40088207)&0xFF) == 0x4e) ||
-      ((REG(0x40088208)&0xFF) == 0x4e) ||
-      ((REG(0x40088209)&0xFF) == 0x4e))*/
-      ) {
+      uint32_t diff;
+      uint16_t chksum_bal;
+      uint32_t offset = (last_length-8)*4;
 
-      REG(0x40088328) = 0x3e;
-      REG(0x4008832c) = 0x3e;
+      diff = (uint32_t) (sfd_time - get_zero_crossing());
 
-      REG(0x40088338) = 0xc1;
-      REG(0x4008833c) = 0xc1;
+      chksum_bal = ((diff >> 16) & 0xFFFF) + (diff & 0xFFFF);
+      chksum_bal = 0xFFFF - chksum_bal;
 
-      //REG(0x400881F4) = 0;
+      // Insert the time difference into the packet
+      REG(0x40088200+offset+ 0) = (diff >> 24) & 0xFF;
+      REG(0x40088200+offset+ 4) = (diff >> 16) & 0xFF;
+      REG(0x40088200+offset+ 8) = (diff >>  8) & 0xFF;
+      REG(0x40088200+offset+12) = (diff >>  0) & 0xFF;
 
-    //  REG(0x400881F4) = uip_udpchksum();
+      // Update the checksum balancer
+      REG(0x40088200+offset+16) = (chksum_bal >> 8) & 0xFF;
+      REG(0x40088200+offset+20) = (chksum_bal >> 0) & 0xFF;
 
       last_length = 0;
       leds_toggle(LEDS_GREEN);

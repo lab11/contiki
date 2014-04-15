@@ -239,6 +239,8 @@ lpm_enter()
   rtimer_clock_t lpm_exit_time;
   rtimer_clock_t duration;
 
+  return;
+
   /*
    * If either the RF or the registered peripherals are on, dropping to PM1/2
    * would equal pulling the rug (32MHz XOSC) from under their feet. Thus, we
