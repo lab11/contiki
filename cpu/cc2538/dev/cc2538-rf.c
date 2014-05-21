@@ -719,8 +719,9 @@ cc2538_rf_rx_tx_isr(void)
   REG(RFCORE_SFR_RFIRQF0) = 0;
 
   if (irq_reg & RFCORE_XREG_RFIRQM0_SFD) {
-    //uint64_t sfd_time = mac_timer_get_sfd();
-    uint64_t sfd_time = 0;
+  //  uint64_t sfd_time = mac_timer_get_sfd();
+    uint64_t sfd_time = mac_timer_get();
+    //uint64_t sfd_time = 0;
 
     if ((REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE) // currently TX
         && last_length > 0
@@ -749,6 +750,7 @@ cc2538_rf_rx_tx_isr(void)
       last_length = 0;
       leds_toggle(LEDS_GREEN);
     }
+
   }
 
   if (irq_reg & RFCORE_XREG_RFIRQM0_FIFOP) {
