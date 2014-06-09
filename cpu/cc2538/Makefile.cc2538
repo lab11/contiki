@@ -5,6 +5,7 @@ AR      = arm-none-eabi-ar
 OBJCOPY = arm-none-eabi-objcopy
 OBJDUMP = arm-none-eabi-objdump
 NM      = arm-none-eabi-nm
+STRIP   = arm-none-eabi-strip
 
 ifndef SOURCE_LDSCRIPT
 SOURCE_LDSCRIPT = $(CONTIKI_CPU)/cc2538.lds
