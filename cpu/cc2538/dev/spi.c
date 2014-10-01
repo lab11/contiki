@@ -89,7 +89,7 @@ spi_init(void)
   ioc_set_over(SPI_MISO_PORT, SPI_MISO_PIN, IOC_OVERRIDE_DIS);
 
   /* Configure the clock */
-  REG(SSI0_BASE + SSI_CPSR) = 2;
+  REG(SSI0_BASE + SSI_CPSR) = 8;
 
   /* Configure the default SPI options.
    *   mode:  Motorola frame format
