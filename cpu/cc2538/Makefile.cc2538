@@ -52,6 +52,9 @@ CONTIKI_CPU_SOURCEFILES += nvic.c cpu.c sys-ctrl.c gpio.c ioc.c spi.c adc.c
 CONTIKI_CPU_SOURCEFILES += cc2538-rf.c udma.c lpm.c
 CONTIKI_CPU_SOURCEFILES += dbg.c ieee-addr.c
 CONTIKI_CPU_SOURCEFILES += slip-arch.c slip.c
+CONTIKI_CPU_SOURCEFILES += gptimer.c
+CONTIKI_CPU_SOURCEFILES += i2c.c
+
 
 DEBUG_IO_SOURCEFILES += dbg-printf.c dbg-snprintf.c dbg-sprintf.c strformat.c
 
@@ -97,6 +100,7 @@ LDGENFLAGS += $(addprefix -D,$(subst $(COMMA), ,$(DEFINES)))
 LDGENFLAGS += $(addprefix -I,$(SOURCEDIRS))
 LDGENFLAGS += -imacros "contiki-conf.h"
 LDGENFLAGS += -x c -P -E
+LDFLAGS += -specs=nosys.specs
 
 # NB: Assumes LDSCRIPT was not overridden and is in $(OBJECTDIR)
 $(LDSCRIPT): $(SOURCE_LDSCRIPT) FORCE | $(OBJECTDIR)
