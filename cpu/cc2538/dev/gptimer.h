@@ -396,7 +396,7 @@ uint8_t gate_gpt_pm0(uint8_t timer);
 
 uint32_t get_event_time(uint8_t timer, uint8_t subtimer);
 
-void gpt_register_test_callback(gptimer_callback_t f);
+void gpt_register_test_callback(void *f);
 
 uint8_t gpt_register_callback(gptimer_callback_t f, uint8_t timer,
 							   uint8_t subtimer, uint8_t function);
@@ -422,6 +422,8 @@ uint8_t gpt_disable_event(uint8_t timer, uint8_t subtimer);
 uint8_t gpt_enable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t int_type);
 
 uint8_t gpt_disable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t int_type);
+
+void gpt_clear_interrupt(uint8_t timer, uint32_t icr_mask);
 
 uint8_t gpt_set_interval_value(uint8_t timer, uint8_t subtimer, uint32_t interval_value);
 

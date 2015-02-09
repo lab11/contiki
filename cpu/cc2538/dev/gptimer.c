@@ -1,4 +1,5 @@
 #include "gptimer.h"
+#include "gpio.h"
 #include "reg.h"
 #include "sys/energest.h"
 #include "dev/sys-ctrl.h"
@@ -6,20 +7,21 @@
 #include "dev/leds.h"
 #include <stdint.h>
 #include <stdio.h>
+#include "net/netstack.h"
+#include "net/packetbuf.h"
 
 static gptimer_callback_t gptimer_callbacks[32] = {0};
-gptimer_callback_t testgptf = NULL;
-static uint8_t subtimer_a_masks[4] = {0,2,4,16};
-static uint8_t subtimer_b_masks[4] = {0,2,4,8};
+static void (*testgptf)(void) = NULL;
+static uint8_t subtimer_a_masks[4] = {1,2,4,16};
+static uint8_t subtimer_b_masks[4] = {1,2,4,8};
 static uint8_t timer_to_sys_ctl[4] = {SYS_CTRL_RCGCGPT_GPT0, SYS_CTRL_RCGCGPT_GPT1, SYS_CTRL_RCGCGPT_GPT2, SYS_CTRL_RCGCGPT_GPT3};
 static uint32_t timer_to_base[4] = {GPTIMER_0_BASE, GPTIMER_1_BASE, GPTIMER_2_BASE, GPTIMER_3_BASE};
-static uint32_t interrupt_masks[2][4] = {{0, 2, 4, 16}, {256, 512, 1024, 2048}};
 
-void wtf_func(uint8_t timer, uint8_t subtimer, uint8_t i, uint32_t gpt_time) {
-	leds_on(LEDS_YELLOW);
-	printf("WTF\n");
-	printf("GPT_TIME: %lu\n", gpt_time);
-}
+//Interrupt masks for enabling, clearing, masking, and checking GPT interrupts
+//Sorted by subtimer (A and B)
+//In order: time-out, capture match, capture event, match
+static uint32_t interrupt_masks[2][4] = {{GPTIMER_IMR_TATOIM, GPTIMER_IMR_CAMIM, GPTIMER_IMR_CAEIM, GPTIMER_IMR_TAMIM},
+										 {GPTIMER_IMR_TBTOIM, GPTIMER_IMR_CBMIM, GPTIMER_IMR_CBEIM, GPTIMER_IMR_TBMIM}};
 
 uint8_t ungate_gpt(uint8_t timer) {
 	if(timer < 4) {
@@ -111,7 +113,7 @@ uint8_t gate_gpt_pm0(uint8_t timer) {
 	}
 }
 
-void gpt_register_test_callback(gptimer_callback_t f) {
+void gpt_register_test_callback(void *f) {
 	testgptf = f;
 }
 
@@ -122,7 +124,7 @@ void gpt_register_test_callback(gptimer_callback_t f) {
 uint8_t gpt_register_callback(gptimer_callback_t f, uint8_t timer,
 							   uint8_t subtimer, uint8_t function) {
 
-	if(timer <= 3 && subtimer <= 2 && function <= 3) {
+	if(timer <= 3 && subtimer < 2 && function <= 3) {
 		uint8_t timer_index = timer * 8;
 		uint8_t subtimer_index = subtimer * 4;
 		printf("callindex: %u\n", timer_index + subtimer_index + function);
@@ -137,34 +139,24 @@ static void run_callbacks(uint8_t timer,
 				          uint8_t interrupt_mask,
 				          uint8_t *subtimer_masks) {
 
-	uint8_t findex = timer*8;
-	gptimer_callback_t *f = gptimer_callbacks[findex];
+	uint8_t findex = timer*8 + subtimer*4;
+	gptimer_callback_t f;
 	uint8_t i = 0;
 
 	for(i=0;i<4;i++) {
 		if(subtimer_masks[i] & interrupt_mask) {
-			leds_on(LEDS_GREEN);
-			if((*f) != NULL) {
-				leds_on(LEDS_RED);
-				printf("irc: %u\n", i);
-				printf("findex: %u\n", findex);
-				printf("testp: %p\n", testgptf);
-				printf("realp: %p\n", f);
-
+			f = gptimer_callbacks[findex+i];
+			if(f != NULL) {
 				uint32_t gpt_time = get_event_time(timer, subtimer);
-				//wtf_func(timer, subtimer, i, gpt_time);
-				(*testgptf)(timer, subtimer, i, gpt_time);
-				//(*f);
-        		(*f)(timer, subtimer, i, gpt_time);
+        		(f)(timer, subtimer, i, gpt_time);
       		}
 		}
-		findex++;
-		f = gptimer_callbacks[findex];
 	}
 }
 
-inline void clear_gpt_interrupt(uint32_t timer_base, uint32_t icr_mask) {
-	REG(timer_base | GPTIMER_ICR) &= icr_mask;
+void gpt_clear_interrupt(uint8_t timer, uint32_t icr_mask) {
+	uint32_t timer_base = timer_to_base[timer];
+	REG(timer_base | GPTIMER_ICR) |= icr_mask;
 }
 
 uint32_t get_event_time(uint8_t timer, uint8_t subtimer) {
@@ -214,6 +206,9 @@ uint8_t gpt_set_32_bit_rtc(uint8_t timer) {
 	return 0;
 }
 
+/*
+
+*/
 uint8_t gpt_set_mode(uint8_t timer, uint8_t subtimer, uint8_t mode) {
 	if(timer < 4 && subtimer < 2 && mode < 4 && mode > 0) {
 		uint32_t timer_base = timer_to_base[timer];
@@ -407,7 +402,6 @@ void gpt_0_a_isr(void) {
   	ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
   	run_callbacks(GPTIMER_0, GPTIMER_SUBTIMER_A, REG(GPT_0_BASE | GPTIMER_MIS), &subtimer_a_masks[0]);
-  	//clear_gpt_interrupt(GPTIMER_0_BASE, GPTIMER_ICR_A_MASK);
 
   	ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
@@ -416,20 +410,17 @@ void gpt_0_b_isr(void) {
 	lpm_exit();
   	ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
-  	run_callbacks(GPTIMER_0, GPTIMER_SUBTIMER_B, REG(GPT_0_BASE | GPTIMER_MIS) >> 9, &subtimer_b_masks[0]);
-  	//clear_gpt_interrupt(GPTIMER_0_BASE, GPTIMER_ICR_B_MASK);
+  	run_callbacks(GPTIMER_0, GPTIMER_SUBTIMER_B, REG(GPT_0_BASE | GPTIMER_MIS) >> 8, &subtimer_b_masks[0]);
 
   	ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
 
 void gpt_1_a_isr(void) {
 	lpm_exit();
-	nvic_interrupt_disable(NVIC_INT_GPTIMER_1A);
-	leds_on(LEDS_RED);
+
   	ENERGEST_ON(ENERGEST_TYPE_IRQ);
-  	printf("GPT: %lu\n", REG(GPT_1_BASE | GPTIMER_MIS));
+
   	run_callbacks(GPTIMER_1, GPTIMER_SUBTIMER_A, REG(GPT_1_BASE | GPTIMER_MIS), &subtimer_a_masks[0]);
-  	clear_gpt_interrupt(GPTIMER_1_BASE, GPTIMER_ICR_A_MASK);
 
   	ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
@@ -437,9 +428,9 @@ void gpt_1_a_isr(void) {
 void gpt_1_b_isr(void) {
 	lpm_exit();
   	ENERGEST_ON(ENERGEST_TYPE_IRQ);
+  	//GPIO_SET_PIN(GPIO_C_BASE, 0x20);
 
-  	run_callbacks(GPTIMER_0, GPTIMER_SUBTIMER_B, REG(GPT_0_BASE | GPTIMER_MIS) >> 9, &subtimer_b_masks[0]);
-  	//clear_gpt_interrupt(GPTIMER_1_BASE, GPTIMER_ICR_B_MASK);
+  	run_callbacks(GPTIMER_1, GPTIMER_SUBTIMER_B, REG(GPT_1_BASE | GPTIMER_MIS) >> 8, &subtimer_b_masks[0]);
 
   	ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
@@ -449,7 +440,6 @@ void gpt_2_a_isr(void) {
   	ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
   	run_callbacks(GPTIMER_2, GPTIMER_SUBTIMER_A, REG(GPT_2_BASE | GPTIMER_MIS), &subtimer_a_masks[0]);
-  	//clear_gpt_interrupt(GPTIMER_2_BASE, GPTIMER_ICR_A_MASK);
 
   	ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 
@@ -459,8 +449,7 @@ void gpt_2_b_isr(void) {
 	lpm_exit();
   	ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
-  	run_callbacks(GPTIMER_0, GPTIMER_SUBTIMER_B, REG(GPT_0_BASE | GPTIMER_MIS) >> 9, &subtimer_b_masks[0]);
-  	//clear_gpt_interrupt(GPTIMER_2_BASE, GPTIMER_ICR_B_MASK);
+  	run_callbacks(GPTIMER_2, GPTIMER_SUBTIMER_B, REG(GPT_2_BASE | GPTIMER_MIS) >> 8, &subtimer_b_masks[0]);
 
   	ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
@@ -470,7 +459,6 @@ void gpt_3_a_isr(void) {
   	ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
   	run_callbacks(GPTIMER_3, GPTIMER_SUBTIMER_A, REG(GPT_3_BASE | GPTIMER_MIS), &subtimer_a_masks[0]);
-  	//clear_gpt_interrupt(GPTIMER_3_BASE, GPTIMER_ICR_A_MASK);
 
   	ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
@@ -479,8 +467,7 @@ void gpt_3_b_isr(void) {
 	lpm_exit();
   	ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
-  	run_callbacks(GPTIMER_0, GPTIMER_SUBTIMER_B, REG(GPT_0_BASE | GPTIMER_MIS) >> 9, &subtimer_b_masks[0]);
-  	//clear_gpt_interrupt(GPTIMER_3_BASE, GPTIMER_ICR_B_MASK);
+  	run_callbacks(GPTIMER_3, GPTIMER_SUBTIMER_B, REG(GPT_3_BASE | GPTIMER_MIS) >> 8, &subtimer_b_masks[0]);
 
   	ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
