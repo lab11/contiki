@@ -59,6 +59,7 @@ static volatile rtimer_clock_t next_trigger;
 void
 rtimer_arch_init(void)
 {
+  next_trigger = 0;
   return;
 }
 /*---------------------------------------------------------------------------*/
@@ -84,8 +85,15 @@ rtimer_arch_schedule(rtimer_clock_t t)
    * New value must be 5 ticks in the future. The ST may tick once while we're
    * writing the registers. We play it safe here and we add a bit of leeway
    */
-  if((int32_t)(t - now) < 7) {
-    t = now + 7;
+  if(t >= now) {
+    if((int64_t)(t - now) < 10) {
+        t = now + 10;
+    }
+  }
+  else {
+    if( (UINT32_MAX - now) + t < 10) {
+      t = 11 - (UINT32_MAX - now);
+    }
   }
 
   /* ST0 latches ST[1:3] and must be written last */
