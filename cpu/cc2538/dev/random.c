@@ -49,6 +49,7 @@
 #include "dev/soc-adc.h"
 #include "dev/sys-ctrl.h"
 #include "reg.h"
+#include "lib/random.h"
 /*---------------------------------------------------------------------------*/
 /**
  * \brief      Generates a new random number using the cc2538 RNG.
