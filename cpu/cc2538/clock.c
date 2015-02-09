@@ -85,28 +85,6 @@ clock_init(void)
   /* System clock source, Enable */
   REG(SYSTICK_STCTRL) |= SYSTICK_STCTRL_CLK_SRC | SYSTICK_STCTRL_ENABLE;
 
-  /* Enable the SysTick Interrupt */
-  REG(SYSTICK_STCTRL) |= SYSTICK_STCTRL_INTEN;
-
-  /*
-   * Remove the clock gate to enable GPT0 and then initialise it
-   * We only use GPT0 for clock_delay_usec. We initialise it here so we can
-   * have it ready when it's needed
-   */
-  REG(SYS_CTRL_RCGCGPT) |= SYS_CTRL_RCGCGPT_GPT0;
-
-  /* Make sure GPT0 is off */
-  REG(GPT_0_BASE | GPTIMER_CTL) = 0;
-
-
-  /* 16-bit */
-  REG(GPT_0_BASE | GPTIMER_CFG) = 0x04;
-
-  /* One-Shot, Count Down, No Interrupts */
-  REG(GPT_0_BASE | GPTIMER_TAMR) = GPTIMER_TAMR_TAMR_ONE_SHOT;
-
-  /* Prescale by 16 (thus, value 15 in TAPR) */
-  REG(GPT_0_BASE | GPTIMER_TAPR) = 0x0F;
 }
 /*---------------------------------------------------------------------------*/
 CCIF clock_time_t
@@ -145,11 +123,24 @@ clock_wait(clock_time_t i)
 void
 clock_delay_usec(uint16_t len)
 {
+  REG(SYS_CTRL_RCGCGPT) |= SYS_CTRL_RCGCGPT_GPT0; // remove clock gate
+  /* Make sure GPT0 is off */
+  REG(GPT_0_BASE | GPTIMER_CTL) = 0;
+
+  /* 16-bit */
+  REG(GPT_0_BASE | GPTIMER_CFG) = 0x04;
+
+  /* One-Shot, Count Down, No Interrupts */
+  REG(GPT_0_BASE | GPTIMER_TAMR) = GPTIMER_TAMR_TAMR_ONE_SHOT;
+
+  /* Prescale by 16 (thus, value 15 in TAPR) */
+  REG(GPT_0_BASE | GPTIMER_TAPR) = 0x0F;
   REG(GPT_0_BASE | GPTIMER_TAILR) = len;
   REG(GPT_0_BASE | GPTIMER_CTL) |= GPTIMER_CTL_TAEN;
 
   /* One-Shot mode: TAEN will be cleared when the timer reaches 0 */
   while(REG(GPT_0_BASE | GPTIMER_CTL) & GPTIMER_CTL_TAEN);
+  REG(SYS_CTRL_RCGCGPT) &= ~SYS_CTRL_RCGCGPT_GPT0; // Don't need this shit running all the time
 }
 /*---------------------------------------------------------------------------*/
 /**
