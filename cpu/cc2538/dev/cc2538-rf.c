@@ -449,7 +449,15 @@ init(void)
 
   /* Acknowledge RF interrupts, FIFOP only */
   REG(RFCORE_XREG_RFIRQM0) |= RFCORE_XREG_RFIRQM0_FIFOP;
+  #ifdef SFD_INT_USED
+  REG(RFCORE_XREG_RFIRQM0) |= RFCORE_XREG_RFIRQM0_SFD;
+  #endif
+  #ifdef RF_TXDONE_INT_USED
+  REG(RFCORE_XREG_RFIRQM1) |= RFCORE_XREG_RFIRQM1_TXDONE; 
+  #endif
   nvic_interrupt_enable(NVIC_INT_RF_RXTX);
+
+
 
   /* Acknowledge all RF Error interrupts */
   REG(RFCORE_XREG_RFERRM) = RFCORE_XREG_RFERRM_RFERRM;
@@ -973,7 +981,27 @@ cc2538_rf_rx_tx_isr(void)
 {
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
-  process_poll(&cc2538_rf_process);
+  #ifdef SFD_INT_USED
+  if(REG(RFCORE_SFR_RFIRQF0) & RFCORE_SFR_RFIRQF0_SFD) {
+    SFD_HANDLER.callback();
+  } else {
+    process_poll(&cc2538_rf_process);
+  }
+  #endif 
+
+  #ifdef RF_TXDONE_INT_USED
+  if(REG(RFCORE_SFR_RFIRQF1) & RFCORE_SFR_RFIRQF1_TXDONE) {
+    RF_TXDONE_HANDLER.callback();
+  } else {
+    process_poll(&cc2538_rf_process);
+  }
+  #endif
+
+  #ifndef SFD_INT_USED 
+    #ifndef RF_TXDONE_INT_USED
+    process_poll(&cc2538_rf_process);
+    #endif
+  #endif
 
   /* We only acknowledge FIFOP so we can safely wipe out the entire SFR */
   REG(RFCORE_SFR_RFIRQF0) = 0;
