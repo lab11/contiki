@@ -44,6 +44,7 @@
 #include "rtimer-arch.h"
 #include "lpm.h"
 #include "reg.h"
+#include "dev/leds.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -70,8 +71,8 @@ static unsigned long irq_energest = 0;
  * If duration < DEEP_SLEEP_PM2_THRESHOLD drop to PM1
  * else PM2.
  */
-#define DEEP_SLEEP_PM1_THRESHOLD    10
-#define DEEP_SLEEP_PM2_THRESHOLD    100
+#define DEEP_SLEEP_PM1_THRESHOLD    2
+#define DEEP_SLEEP_PM2_THRESHOLD    11
 /*---------------------------------------------------------------------------*/
 #define assert_wfi() do { asm("wfi"::); } while(0)
 /*---------------------------------------------------------------------------*/
@@ -102,6 +103,10 @@ static uint8_t max_pm;
 #define LPM_PERIPH_PERMIT_PM1_FUNCS_MAX LPM_CONF_PERIPH_PERMIT_PM1_FUNCS_MAX
 #else
 #define LPM_PERIPH_PERMIT_PM1_FUNCS_MAX 2
+#endif
+
+#ifndef LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP
+#define LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP 0
 #endif
 
 static lpm_periph_permit_pm1_func_t
@@ -230,6 +235,7 @@ lpm_enter()
 {
   rtimer_clock_t lpm_exit_time;
   rtimer_clock_t duration;
+  rtimer_clock_t lpm_current_time;
 
   /*
    * If either the RF or the registered peripherals are on, dropping to PM1/2
@@ -251,9 +257,18 @@ lpm_enter()
    * Choose the most suitable PM based on anticipated deep sleep duration
    */
   lpm_exit_time = rtimer_arch_next_trigger();
-  duration = lpm_exit_time - RTIMER_NOW();
+  lpm_current_time = RTIMER_NOW();
+  duration = lpm_exit_time > lpm_current_time ? (lpm_exit_time - lpm_current_time) : (lpm_exit_time + (UINT32_MAX - lpm_current_time));
 
-  if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) {
+  if(lpm_exit_time == 0 && LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) {
+    REG(SCB_SYSCTRL) |= SCB_SYSCTRL_SLEEPDEEP;
+    REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM2;
+    ENERGEST_IRQ_RESTORE(irq_energest);
+    ENERGEST_OFF(ENERGEST_TYPE_CPU);
+    ENERGEST_ON(ENERGEST_TYPE_LPM);
+    assert_wfi();
+  }
+  else if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) {
     /* Anticipated duration too short or no scheduled rtimer task. Use PM0 */
     enter_pm0();
 
@@ -270,7 +285,9 @@ lpm_enter()
    * Switching the System Clock from the 32MHz XOSC to the 16MHz RC OSC may
    * have taken a while. Re-estimate sleep duration.
    */
-  duration = lpm_exit_time - RTIMER_NOW();
+  lpm_current_time = RTIMER_NOW();
+  duration = lpm_exit_time > lpm_current_time ? (lpm_exit_time - lpm_current_time) : (lpm_exit_time + (UINT32_MAX - lpm_current_time));
+
 
   if(duration < DEEP_SLEEP_PM1_THRESHOLD) {
     /*
@@ -313,7 +330,7 @@ lpm_enter()
    * Check if there is still a scheduled rtimer task and check for pending
    * events before going to Deep Sleep
    */
-  if(process_nevents() || rtimer_arch_next_trigger() == 0) {
+  if(process_nevents() || (rtimer_arch_next_trigger() == 0 && !LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP)){
     /* Event flag raised or rtimer inactive.
      * Turn on the 32MHz XOSC, restore PMCTL and abort */
     select_32_mhz_xosc();
