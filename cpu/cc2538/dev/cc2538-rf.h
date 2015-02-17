@@ -155,6 +155,8 @@ void cc2538_rf_set_addr(uint16_t pan);
  */
 void cc2538_rf_set_promiscous_mode(char p);
 /*---------------------------------------------------------------------------*/
+
+uint8_t cc2538_on_and_transmit(uint32_t initial_time);
 #endif /* CC2538_RF_H__ */
 
 /**

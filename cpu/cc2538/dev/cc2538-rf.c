@@ -49,6 +49,8 @@
 #include "dev/sys-ctrl.h"
 #include "dev/udma.h"
 #include "reg.h"
+#include "dev/leds.h"
+#include "vtimer.h"
 
 #include <string.h>
 /*---------------------------------------------------------------------------*/
@@ -122,6 +124,8 @@ static const uint8_t magic[] = { 0x53, 0x6E, 0x69, 0x66 };      /** Snif */
 #endif
 /*---------------------------------------------------------------------------*/
 static uint8_t rf_flags;
+static uint8_t last_length = 0;
+static uint32_t opo_initial_time = 0;
 
 static int on(void);
 static int off(void);
@@ -179,7 +183,6 @@ get_channel()
 static int8_t
 set_channel(uint8_t channel)
 {
-  PRINTF("RF: Set Channel\n");
 
   if((channel < CC2538_RF_CHANNEL_MIN) || (channel > CC2538_RF_CHANNEL_MAX)) {
     return CC2538_RF_CHANNEL_SET_ERROR;
@@ -333,8 +336,6 @@ channel_clear(void)
 {
   int cca;
 
-  PRINTF("RF: CCA\n");
-
   /* If we are off, turn on first */
   if((REG(RFCORE_XREG_FSMSTAT0) & RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE) == 0) {
     rf_flags |= WAS_OFF;
@@ -362,7 +363,6 @@ channel_clear(void)
 static int
 on(void)
 {
-  PRINTF("RF: On\n");
 
   if(!(rf_flags & RX_ACTIVE)) {
     CC2538_RF_CSP_ISFLUSHRX();
@@ -371,14 +371,12 @@ on(void)
     rf_flags |= RX_ACTIVE;
   }
 
-  ENERGEST_ON(ENERGEST_TYPE_LISTEN);
   return 1;
 }
 /*---------------------------------------------------------------------------*/
 static int
 off(void)
 {
-  PRINTF("RF: Off\n");
 
   /* Wait for ongoing TX to complete (e.g. this could be an outgoing ACK) */
   while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
@@ -399,8 +397,6 @@ off(void)
 static int
 init(void)
 {
-  PRINTF("RF: Init\n");
-
   if(rf_flags & RF_ON) {
     return 0;
   }
@@ -453,7 +449,7 @@ init(void)
   REG(RFCORE_XREG_RFIRQM0) |= RFCORE_XREG_RFIRQM0_SFD;
   #endif
   #ifdef RF_TXDONE_INT_USED
-  REG(RFCORE_XREG_RFIRQM1) |= RFCORE_XREG_RFIRQM1_TXDONE; 
+  REG(RFCORE_XREG_RFIRQM1) |= RFCORE_XREG_RFIRQM1_TXDONE;
   #endif
   nvic_interrupt_enable(NVIC_INT_RF_RXTX);
 
@@ -499,8 +495,6 @@ prepare(const void *payload, unsigned short payload_len)
 {
   uint8_t i;
 
-  PRINTF("RF: Prepare 0x%02x bytes\n", payload_len + CHECKSUM_LEN);
-
   /*
    * When we transmit in very quick bursts, make sure previous transmission
    * is not still in progress before re-writing to the TX FIFO
@@ -513,12 +507,10 @@ prepare(const void *payload, unsigned short payload_len)
 
   CC2538_RF_CSP_ISFLUSHTX();
 
-  PRINTF("RF: data = ");
   /* Send the phy length byte first */
   REG(RFCORE_SFR_RFDATA) = payload_len + CHECKSUM_LEN;
 
   if(CC2538_RF_CONF_TX_USE_DMA) {
-    PRINTF("<uDMA payload>");
 
     /* Set the transfer source's end address */
     udma_set_channel_src(CC2538_RF_CONF_TX_DMA_CHAN,
@@ -542,11 +534,8 @@ prepare(const void *payload, unsigned short payload_len)
   } else {
     for(i = 0; i < payload_len; i++) {
       REG(RFCORE_SFR_RFDATA) = ((unsigned char *)(payload))[i];
-      PRINTF("%02x", ((unsigned char *)(payload))[i]);
     }
   }
-  PRINTF("\n");
-
   return 0;
 }
 /*---------------------------------------------------------------------------*/
@@ -556,8 +545,6 @@ transmit(unsigned short transmit_len)
   uint8_t counter;
   int ret = RADIO_TX_ERR;
   rtimer_clock_t t0;
-
-  PRINTF("RF: Transmit\n");
 
   if(!(rf_flags & RX_ACTIVE)) {
     t0 = RTIMER_NOW();
@@ -593,7 +580,6 @@ transmit(unsigned short transmit_len)
   }
 
   if(!(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE)) {
-    PRINTF("RF: TX never active.\n");
     CC2538_RF_CSP_ISFLUSHTX();
     ret = RADIO_TX_ERR;
   } else {
@@ -629,8 +615,6 @@ read(void *buf, unsigned short bufsize)
   uint8_t crc_corr;
   int8_t rssi;
 
-  PRINTF("RF: Read\n");
-
   if((REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_FIFOP) == 0) {
     return 0;
   }
@@ -641,7 +625,6 @@ read(void *buf, unsigned short bufsize)
   /* Check for validity */
   if(len > CC2538_RF_MAX_PACKET_LEN) {
     /* Oops, we must be out of sync. */
-    PRINTF("RF: bad sync\n");
 
     RIMESTATS_ADD(badsynch);
     CC2538_RF_CSP_ISFLUSHRX();
@@ -649,7 +632,6 @@ read(void *buf, unsigned short bufsize)
   }
 
   if(len <= CC2538_RF_MIN_PACKET_LEN) {
-    PRINTF("RF: too short\n");
 
     RIMESTATS_ADD(tooshort);
     CC2538_RF_CSP_ISFLUSHRX();
@@ -657,7 +639,6 @@ read(void *buf, unsigned short bufsize)
   }
 
   if(len - CHECKSUM_LEN > bufsize) {
-    PRINTF("RF: too long\n");
 
     RIMESTATS_ADD(toolong);
     CC2538_RF_CSP_ISFLUSHRX();
@@ -665,12 +646,10 @@ read(void *buf, unsigned short bufsize)
   }
 
   /* If we reach here, chances are the FIFO is holding a valid frame */
-  PRINTF("RF: read (0x%02x bytes) = ", len);
   len -= CHECKSUM_LEN;
 
   /* Don't bother with uDMA for short frames (e.g. ACKs) */
   if(CC2538_RF_CONF_RX_USE_DMA && len > UDMA_RX_SIZE_THRESHOLD) {
-    PRINTF("<uDMA payload>");
 
     /* Set the transfer destination's end address */
     udma_set_channel_dst(CC2538_RF_CONF_RX_DMA_CHAN,
@@ -691,15 +670,12 @@ read(void *buf, unsigned short bufsize)
   } else {
     for(i = 0; i < len; ++i) {
       ((unsigned char *)(buf))[i] = REG(RFCORE_SFR_RFDATA);
-      PRINTF("%02x", ((unsigned char *)(buf))[i]);
     }
   }
 
   /* Read the RSSI and CRC/Corr bytes */
   rssi = ((int8_t)REG(RFCORE_SFR_RFDATA)) - RSSI_OFFSET;
   crc_corr = REG(RFCORE_SFR_RFDATA);
-
-  PRINTF("%02x%02x\n", (uint8_t)rssi, crc_corr);
 
   /* MS bit CRC OK/Not OK, 7 LS Bits, Correlation value */
   if(crc_corr & CRC_BIT_MASK) {
@@ -708,7 +684,6 @@ read(void *buf, unsigned short bufsize)
     RIMESTATS_ADD(llrx);
   } else {
     RIMESTATS_ADD(badcrc);
-    PRINTF("RF: Bad CRC\n");
     CC2538_RF_CSP_ISFLUSHRX();
     return 0;
   }
@@ -742,7 +717,6 @@ read(void *buf, unsigned short bufsize)
 static int
 receiving_packet(void)
 {
-  PRINTF("RF: Receiving\n");
 
   /*
    * SFD high while transmitting and receiving.
@@ -758,7 +732,6 @@ receiving_packet(void)
 static int
 pending_packet(void)
 {
-  PRINTF("RF: Pending\n");
 
   return (REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_FIFOP);
 }
@@ -929,6 +902,58 @@ const struct radio_driver cc2538_rf_driver = {
   get_object,
   set_object
 };
+
+uint8_t cc2538_on_and_transmit(uint32_t initial_time) {
+  uint8_t i;
+  uint8_t counter;
+  int ret = RADIO_TX_ERR;
+  void *payload;
+  unsigned short payload_len;
+  opo_initial_time = initial_time;
+
+  packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
+
+  if(NETSTACK_FRAMER.create() < 0) {
+    /* Failed to allocate space for headers */
+    return MAC_TX_ERR_FATAL;
+  }
+
+  payload = packetbuf_hdrptr();
+  payload_len = packetbuf_totlen();
+
+  CC2538_RF_CSP_ISFLUSHTX();
+
+  /* Send the phy length byte first */
+  REG(RFCORE_SFR_RFDATA) = payload_len + CHECKSUM_LEN;
+  last_length = payload_len + CHECKSUM_LEN;
+
+  /* Fuck your dma */
+  for(i = 0; i < payload_len; i++) {
+    REG(RFCORE_SFR_RFDATA) = ((unsigned char *)(payload))[i];
+  }
+
+/*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+  CC2538_RF_CSP_ISTXON();
+
+  counter = 0;
+  while(!((REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE))
+        && (counter++ < 3)) {
+    clock_delay_usec(6);
+  }
+
+  if(!(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE)) {
+    CC2538_RF_CSP_ISFLUSHTX();
+    ret = RADIO_TX_ERR;
+  } else {
+    /* Wait for the transmission to finish */
+    while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
+    ret = RADIO_TX_OK;
+  }
+
+  return ret;
+}
+
 /*---------------------------------------------------------------------------*/
 /**
  * \brief Implementation of the cc2538 RF driver process
@@ -979,7 +1004,38 @@ PROCESS_THREAD(cc2538_rf_process, ev, data)
 void
 cc2538_rf_rx_tx_isr(void)
 {
-  ENERGEST_ON(ENERGEST_TYPE_IRQ);
+  if(REG(RFCORE_SFR_RFIRQF0) & RFCORE_XREG_RFIRQM0_SFD) {
+    uint32_t sfd_time = VTIMER_NOW();
+
+    if( (REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE) // currently TX
+        && last_length > 0
+      ) {
+
+      uint32_t diff = sfd_time - opo_initial_time;
+      uint16_t chksum_bal;
+      uint32_t offset = (last_length-8)*4;
+
+      chksum_bal = ((diff >> 16) & 0xFFFF) + (diff & 0xFFFF);
+      chksum_bal = 0xFFFF - chksum_bal;
+
+      // Insert the time difference into the packet
+      REG(0x40088200+offset+ 0) = (diff >> 24) & 0xFF;
+      REG(0x40088200+offset+ 4) = (diff >> 16) & 0xFF;
+      REG(0x40088200+offset+ 8) = (diff >>  8) & 0xFF;
+      REG(0x40088200+offset+12) = (diff >>  0) & 0xFF;
+
+      // Update the checksum balancer
+      REG(0x40088200+offset+16) = (chksum_bal >> 8) & 0xFF;
+      REG(0x40088200+offset+20) = (chksum_bal >> 0) & 0xFF;
+
+      last_length = 0;
+      opo_initial_time = 0;
+      leds_toggle(LEDS_RED);
+      if(diff < 0x0160) {
+        leds_toggle(LEDS_BLUE);
+      }
+    }
+  }
 
   #ifdef SFD_INT_USED
   if(REG(RFCORE_SFR_RFIRQF0) & RFCORE_SFR_RFIRQF0_SFD) {
@@ -987,7 +1043,7 @@ cc2538_rf_rx_tx_isr(void)
   } else {
     process_poll(&cc2538_rf_process);
   }
-  #endif 
+  #endif
 
   #ifdef RF_TXDONE_INT_USED
   if(REG(RFCORE_SFR_RFIRQF1) & RFCORE_SFR_RFIRQF1_TXDONE) {
@@ -997,7 +1053,7 @@ cc2538_rf_rx_tx_isr(void)
   }
   #endif
 
-  #ifndef SFD_INT_USED 
+  #ifndef SFD_INT_USED
     #ifndef RF_TXDONE_INT_USED
     process_poll(&cc2538_rf_process);
     #endif
@@ -1005,8 +1061,6 @@ cc2538_rf_rx_tx_isr(void)
 
   /* We only acknowledge FIFOP so we can safely wipe out the entire SFR */
   REG(RFCORE_SFR_RFIRQF0) = 0;
-
-  ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
 /*---------------------------------------------------------------------------*/
 /**
@@ -1029,9 +1083,6 @@ void
 cc2538_rf_err_isr(void)
 {
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
-
-  PRINTF("RF Error: 0x%08lx\n", REG(RFCORE_SFR_RFERRF));
-
   /* If the error is not an RX FIFO overflow, set a flag */
   if(REG(RFCORE_SFR_RFERRF) != RFCORE_SFR_RFERRF_RXOVERF) {
     rf_flags |= RF_MUST_RESET;
