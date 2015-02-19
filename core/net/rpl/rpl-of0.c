@@ -154,12 +154,36 @@ best_parent(rpl_parent_t *p1, rpl_parent_t *p2)
      for that parent. We choose the parent that has the most
      favourable combination. */
 
-  if(r1 < r2 + MIN_DIFFERENCE &&
-     r1 > r2 - MIN_DIFFERENCE) {
+  dag = (rpl_dag_t *)p1->dag; /* Both parents must be in the same DAG. */
+
+  // Brad changes
+  if (p1->rank == 1) {
+    PRINTF("RPL: Select parent p1 with rank 1: ");
+    PRINT6ADDR(rpl_get_parent_ipaddr(p1));
+    PRINTF("\n");
+    return p1;
+  } else if (p2->rank == 1) {
+    PRINTF("RPL: Select parent p2 with rank 1: ");
+    PRINT6ADDR(rpl_get_parent_ipaddr(p2));
+    PRINTF("\n");
+    return p2;
+  }
+  else if(r1 < r2 + MIN_DIFFERENCE &&
+         r1 > r2 - MIN_DIFFERENCE) {
+    PRINTF("r1: %i, r2: %i, MINDIFF: %i\n", r1, r2, MIN_DIFFERENCE);
+    PRINTF("RPL: Selecting pref parent: ");
+    PRINT6ADDR(rpl_get_parent_ipaddr(dag->preferred_parent));
+    PRINTF("\n");
     return dag->preferred_parent;
   } else if(r1 < r2) {
+    PRINTF("RPL: Selecting parent 1: ");
+    PRINT6ADDR(rpl_get_parent_ipaddr(p1));
+    PRINTF("\n");
     return p1;
   } else {
+    PRINTF("RPL: Selecting parent 2: ");
+    PRINT6ADDR(rpl_get_parent_ipaddr(p2));
+    PRINTF("\n");
     return p2;
   }
 }
