@@ -11,19 +11,9 @@ static gptimer_callback_t gptimer_callbacks[32] = {NULL};
 // gptimer_callback_t testgptf = NULL;
 // static uint8_t subtimer_a_masks[4] = {0,2,4,16};
 // static uint8_t subtimer_b_masks[4] = {0,2,4,8};
-// static uint8_t timer_to_sys_ctl[4] = {SYS_CTRL_RCGCGPT_GPT0, SYS_CTRL_RCGCGPT_GPT1, SYS_CTRL_RCGCGPT_GPT2, SYS_CTRL_RCGCGPT_GPT3};
+static uint8_t TIMER_TO_SYS_CTL[4] = {SYS_CTRL_RCGCGPT_GPT0, SYS_CTRL_RCGCGPT_GPT1, SYS_CTRL_RCGCGPT_GPT2, SYS_CTRL_RCGCGPT_GPT3};
 static uint32_t TIMER_TO_BASE[4] = {GPTIMER_0_BASE, GPTIMER_1_BASE, GPTIMER_2_BASE, GPTIMER_3_BASE};
 // static uint32_t interrupt_masks[2][4] = {{0, 2, 4, 16}, {256, 512, 1024, 2048}};
-
-#define CC2538_NUM_GPTIMERS 4
-#define CC2538_NUM_SUBGPTIMERS 2
-#define CC2538_NUM_GPTIMER_INTERRUPT_TYPES 4
-#define GPTIMER_CHECK_VALID_TIMER(timer_index) \
-  do { if (timer_index >= CC2538_NUM_GPTIMERS) return -1; } while(0)
-#define GPTIMER_CHECK_VALID_SUBTIMER(subtimer_index) \
-  do { if (subtimer_index >= CC2538_NUM_SUBGPTIMERS) return -1; } while(0)
-#define GPTIMER_CHECK_VALID_INTERRUPT_TYPES(event) \
-  do { if (event >= CC2538_NUM_GPTIMER_INTERRUPT_TYPES) return -1; } while(0)
 
 
 
@@ -54,7 +44,7 @@ gate_gpt(uint8_t timer)
 int
 ungate_gpt_running(uint8_t timer) {
   GPTIMER_CHECK_VALID_TIMER(timer);
-  REG(SYS_CTRL_RCGCGPT) |= timer_to_sys_ctl[timer];
+  REG(SYS_CTRL_RCGCGPT) |= TIMER_TO_SYS_CTL[timer];
   return 0;
 }
 
@@ -62,7 +52,7 @@ int
 ungate_gpt_sleeping(uint8_t timer)
 {
   GPTIMER_CHECK_VALID_TIMER(timer);
-  REG(SYS_CTRL_SCGCGPT) |= timer_to_sys_ctl[timer];
+  REG(SYS_CTRL_SCGCGPT) |= TIMER_TO_SYS_CTL[timer];
   return 0;
 }
 
@@ -70,7 +60,7 @@ int
 ungate_gpt_pm0(uint8_t timer)
 {
   GPTIMER_CHECK_VALID_TIMER(timer);
-  REG(SYS_CTRL_DCGCGPT) |= timer_to_sys_ctl[timer];
+  REG(SYS_CTRL_DCGCGPT) |= TIMER_TO_SYS_CTL[timer];
   return 0;
 }
 
@@ -78,7 +68,7 @@ int
 gate_gpt_running(uint8_t timer)
 {
   GPTIMER_CHECK_VALID_TIMER(timer);
-  REG(SYS_CTRL_RCGCGPT) &= ~timer_to_sys_ctl[timer];
+  REG(SYS_CTRL_RCGCGPT) &= ~TIMER_TO_SYS_CTL[timer];
   return 0;
 }
 
@@ -86,7 +76,7 @@ int
 gate_gpt_sleeping(uint8_t timer)
 {
   GPTIMER_CHECK_VALID_TIMER(timer);
-  REG(SYS_CTRL_SCGCGPT) &= ~timer_to_sys_ctl[timer];
+  REG(SYS_CTRL_SCGCGPT) &= ~TIMER_TO_SYS_CTL[timer];
   return 0;
 }
 
@@ -94,7 +84,7 @@ int
 gate_gpt_pm0(uint8_t timer)
 {
   GPTIMER_CHECK_VALID_TIMER(timer);
-  REG(SYS_CTRL_DCGCGPT) &= ~timer_to_sys_ctl[timer];
+  REG(SYS_CTRL_DCGCGPT) &= ~TIMER_TO_SYS_CTL[timer];
   return 0;
 }
 
@@ -179,7 +169,7 @@ static void run_callbacks(uint8_t timer, uint8_t subtimer,
        gptimer_callbacks[findex+GPTIMER_CAPTURE_EVENT_INT]) {
       (*gptimer_callbacks[findex+GPTIMER_CAPTURE_EVENT_INT])(gpt_time);
     }
-    if((interrupt_mask & GPTIMER_MIS_TBMRIS) &&
+    if((interrupt_mask & GPTIMER_MIS_TBMMIS) &&
        gptimer_callbacks[findex+GPTIMER_MATCH_INT]) {
       (*gptimer_callbacks[findex+GPTIMER_MATCH_INT])(gpt_time);
     }
@@ -235,8 +225,8 @@ gpt_set_mode(uint8_t timer, uint8_t subtimer, uint32_t mode)
 int
 gpt_set_capture_mode(uint8_t timer, uint8_t subtimer, uint32_t cap_mode)
 {
-  if(cap_mode != GPTIMER_CAPTURE_MODE_EDGE_COUNT &&
-     cap_mode != GPTIMER_CAPTURE_MODE_EDGE_TIME) {
+  if((cap_mode != GPTIMER_TnMR_TnCMR_EDGE_COUNT) &&
+     (cap_mode != GPTIMER_TnMR_TnCMR_EDGE_TIME)) {
     return -1;
   }
   return gpt_set_mode_register(timer, subtimer, GPTIMER_TAMR_TACMR, cap_mode);
@@ -245,8 +235,8 @@ gpt_set_capture_mode(uint8_t timer, uint8_t subtimer, uint32_t cap_mode)
 int
 gpt_set_alternate_mode(uint8_t timer, uint8_t subtimer, uint32_t alt_mode)
 {
-  if(alt_mode != GPTIMER_ALTERNATE_MODE_CAPTURE &&
-     alt_mode != GPTIMER_ALTERNATE_MODE_PWM) {
+  if((alt_mode != GPTIMER_TnMR_TnAMS_CAPTURE_MODE) &&
+     (alt_mode != GPTIMER_TnMR_TnAMS_PWM_MODE)) {
     return -1;
   }
   return gpt_set_mode_register(timer, subtimer, GPTIMER_TAMR_TAAMS, alt_mode);
@@ -255,8 +245,8 @@ gpt_set_alternate_mode(uint8_t timer, uint8_t subtimer, uint32_t alt_mode)
 int
 gpt_set_count_dir(uint8_t timer, uint8_t subtimer, uint32_t count_dir)
 {
-  if(count_dir != GPTIMER_COUNT_DIR_DOWN &&
-     count_dir != GPTIMER_COUNT_DIR_UP) {
+  if((count_dir != GPTIMER_TnMR_TnCDIR_COUNT_DOWN) &&
+     (count_dir != GPTIMER_TnMR_TnCDIR_COUNT_UP)) {
     return -1;
   }
   return gpt_set_mode_register(timer, subtimer, GPTIMER_TAMR_TACDIR, count_dir);
@@ -284,9 +274,9 @@ gpt_set_control_register(uint8_t timer, uint8_t subtimer, uint32_t mask,
 
 int
 gpt_set_event_mode(uint8_t timer, uint8_t subtimer, uint32_t event_mode) {
-  if(event_mode != GPTIMER_EVENT_MODE_POSITIVE_EDGE &&
-     event_mode != GPTIMER_EVENT_MODE_NEGATIVE_EDGE &&
-     event_mode != GPTIMER_EVENT_MODE_BOTH_EDGES)) {
+  if((event_mode != GPTIMER_CTL_TnEVENT_POSITIVE_EDGE) &&
+     (event_mode != GPTIMER_CTL_TnEVENT_NEGATIVE_EDGE) &&
+     (event_mode != GPTIMER_CTL_TnEVENT_BOTH_EDGES)) {
     return -1;
   }
   return gpt_set_control_register(timer, subtimer, GPTIMER_CTL_TAEVENT, event_mode);
@@ -338,6 +328,7 @@ gpt_enable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t interrupt_type)
   GPTIMER_CHECK_VALID_SUBTIMER(subtimer);
   if (interrupt_type > 3) return -1;
 
+  uint32_t timer_base = TIMER_TO_BASE[timer];
   uint32_t int_mask = gpt_get_interrupt_mask(subtimer, interrupt_type);
   REG(timer_base | GPTIMER_IMR) |= int_mask;
 
@@ -345,12 +336,13 @@ gpt_enable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t interrupt_type)
 }
 
 int
-gpt_disable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t int_type)
+gpt_disable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t interrupt_type)
 {
   GPTIMER_CHECK_VALID_TIMER(timer);
   GPTIMER_CHECK_VALID_SUBTIMER(subtimer);
   if (interrupt_type > 3) return -1;
 
+  uint32_t timer_base = TIMER_TO_BASE[timer];
   uint32_t int_mask = gpt_get_interrupt_mask(subtimer, interrupt_type);
   REG(timer_base | GPTIMER_IMR) &= ~int_mask;
 

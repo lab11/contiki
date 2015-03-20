@@ -52,7 +52,7 @@
   do { if (timer_index >= CC2538_NUM_GPTIMERS) return -1; } while(0)
 #define GPTIMER_CHECK_VALID_SUBTIMER(subtimer_index) \
   do { if (subtimer_index >= CC2538_NUM_SUBGPTIMERS) return -1; } while(0)
-#define GPTIMER_CHECK_VALID_INTERRUPT_TYPES(event) \
+#define GPTIMER_CHECK_VALID_INTERRUPT_TYPE(event) \
   do { if (event >= CC2538_NUM_GPTIMER_INTERRUPT_TYPES) return -1; } while(0)
 
 
@@ -100,7 +100,7 @@
 #define GPTIMER_ICR_A_MASK			    0xFFFEFF00
 #define GPTIMER_ICR_B_MASK			    0xFFFE00FF
 
-typedef void (* gptimer_callback_t)(uint8_t timer, uint8_t subtimer, uint8_t function, uint32_t gpt_time);
+typedef void (*gptimer_callback_t)(uint32_t gpt_time);
 
 /*---------------------------------------------------------------------------*/
 /** \name Base addresses for the GPT register instances
@@ -168,16 +168,20 @@ typedef void (* gptimer_callback_t)(uint8_t timer, uint8_t subtimer, uint8_t fun
 #define GPTIMER_TAMR_TAMR_ONE_SHOT 0x00000001
 #define GPTIMER_TAMR_TAMR_PERIODIC 0x00000002
 #define GPTIMER_TAMR_TAMR_CAPTURE  0x00000003
-#define GPTIMER_TBMR_TBMR_ONE_SHOT 0x00000001
-#define GPTIMER_TBMR_TBMR_PERIODIC 0x00000002
-#define GPTIMER_TBMR_TBMR_CAPTURE  0x00000003
+#define GPTIMER_TnMR_TnMR_ONE_SHOT 0x00000001
+#define GPTIMER_TnMR_TnMR_PERIODIC 0x00000002
+#define GPTIMER_TnMR_TnMR_CAPTURE  0x00000003
 /** @} */
 /*---------------------------------------------------------------------------*/
 /** \name GPTIMER_TnMR register bit values
  * @{
  */
- #define GPTIMER_TnMR_TnCMR_EDGE_COUNT 0x00000000
- #define GPTIMER_TnMR_TnCMR_EDGE_TIME  0x00000004
+#define GPTIMER_TnMR_TnCMR_EDGE_COUNT   0x00000000
+#define GPTIMER_TnMR_TnCMR_EDGE_TIME    0x00000004
+#define GPTIMER_TnMR_TnAMS_CAPTURE_MODE 0x00000000
+#define GPTIMER_TnMR_TnAMS_PWM_MODE     0x00000008
+#define GPTIMER_TnMR_TnCDIR_COUNT_DOWN  0x00000000
+#define GPTIMER_TnMR_TnCDIR_COUNT_UP    0x00000010
 /** @} */
 /*---------------------------------------------------------------------------*/
 /** \name GPTIMER_TAMR register bit masks
@@ -210,6 +214,14 @@ typedef void (* gptimer_callback_t)(uint8_t timer, uint8_t subtimer, uint8_t fun
 #define GPTIMER_TBMR_TBAMS      0x00000008 /**< Timer B alternate mode */
 #define GPTIMER_TBMR_TBCMR      0x00000004 /**< Timer B capture mode */
 #define GPTIMER_TBMR_TBMR       0x00000003 /**< Timer B mode */
+/** @} */
+/*---------------------------------------------------------------------------*/
+/** \name GPTIMER_CTL register bit values
+ * @{
+ */
+#define GPTIMER_CTL_TnEVENT_POSITIVE_EDGE 0x00000000
+#define GPTIMER_CTL_TnEVENT_NEGATIVE_EDGE 0x00000004
+#define GPTIMER_CTL_TnEVENT_BOTH_EDGES    0x0000000C
 /** @} */
 /*---------------------------------------------------------------------------*/
 /** \name GPTIMER_CTL register bit masks
@@ -406,53 +418,62 @@ typedef void (* gptimer_callback_t)(uint8_t timer, uint8_t subtimer, uint8_t fun
 #define GPTIMER_PP_SIZE         0x0000000F /**< Timer size */
 /** @} */
 
-uint8_t ungate_gpt(uint8_t timer);
-uint8_t gate_gpt(uint8_t timer);
 
-uint8_t ungate_gpt_running(uint8_t timer);
 
-uint8_t ungate_gpt_sleeping(uint8_t timer);
 
-uint8_t ungate_gpt_pm0(uint8_t timer);
+int ungate_gpt(uint8_t timer);
 
-uint8_t gate_gpt_running(uint8_t timer);
+int gate_gpt(uint8_t timer);
 
-uint8_t gate_gpt_sleeping(uint8_t timer);
+int ungate_gpt_running(uint8_t timer);
 
-uint8_t gate_gpt_pm0(uint8_t timer);
+int ungate_gpt_sleeping(uint8_t timer);
 
-uint32_t get_event_time(uint8_t timer, uint8_t subtimer);
+int ungate_gpt_pm0(uint8_t timer);
 
-void gpt_register_test_callback(gptimer_callback_t f);
+int gate_gpt_running(uint8_t timer);
 
-uint8_t gpt_register_callback(gptimer_callback_t f, uint8_t timer,
-							   uint8_t subtimer, uint8_t function);
+int gate_gpt_sleeping(uint8_t timer);
 
-uint8_t gpt_set_16_bit_timer(uint8_t timer);
+int gate_gpt_pm0(uint8_t timer);
 
-uint8_t gpt_set_32_bit_timer(uint8_t timer);
 
-uint8_t gpt_set_mode(uint8_t timer, uint8_t subtimer, uint8_t mode);
 
-uint8_t gpt_set_capture_mode(uint8_t timer, uint8_t subtimer, uint32_t cap_mode);
+/*
+  Returns true if function successfully added to callback array
+  Returns false if input parameters are invalid
+*/
+int gpt_register_callback(gptimer_callback_t f, uint8_t timer,
+                      uint8_t subtimer, uint8_t interrupt_type);
+inline void clear_gpt_interrupt(uint32_t timer_base, uint32_t icr_mask);
 
-uint8_t gpt_set_alternate_mode(uint8_t timer, uint8_t subtimer, uint32_t alt_mode);
+int gpt_configure_timer(uint8_t timer, uint32_t config);
 
-uint8_t gpt_set_count_dir(uint8_t timer, uint8_t subtimer, uint32_t count_dir);
+int gpt_set_mode(uint8_t timer, uint8_t subtimer, uint32_t mode);
 
-uint8_t gpt_set_event_mode(uint8_t timer, uint8_t subtimer, uint32_t event_mode);
+int gpt_set_capture_mode(uint8_t timer, uint8_t subtimer, uint32_t cap_mode);
 
-uint8_t gpt_enable_event(uint8_t timer, uint8_t subtimer);
+int gpt_set_alternate_mode(uint8_t timer, uint8_t subtimer, uint32_t alt_mode);
 
-uint8_t gpt_disable_event(uint8_t timer, uint8_t subtimer);
+int gpt_set_count_dir(uint8_t timer, uint8_t subtimer, uint32_t count_dir);
 
-uint8_t gpt_enable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t int_type);
 
-uint8_t gpt_disable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t int_type);
 
-uint8_t gpt_set_interval_value(uint8_t timer, uint8_t subtimer, uint32_t interval_value);
+int gpt_set_event_mode(uint8_t timer, uint8_t subtimer, uint32_t event_mode);
 
-uint8_t gpt_set_match_value(uint8_t timer, uint8_t subtimer, uint32_t match_value);
+int gpt_enable_event(uint8_t timer, uint8_t subtimer);
+int gpt_disable_event(uint8_t timer, uint8_t subtimer);
+
+
+
+int gpt_enable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t interrupt_type);
+
+int gpt_disable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t int_type);
+
+int gpt_set_interval_value(uint8_t timer, uint8_t subtimer, uint32_t interval_value);
+
+int gpt_set_match_value(uint8_t timer, uint8_t subtimer, uint32_t match_value);
+
 
 void gpt_0_a_isr();
 
