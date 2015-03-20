@@ -40,8 +40,68 @@
  * \file
  * Header file for the cc2538 General Purpose Timers
  */
+#include <stdint.h>
+
 #ifndef GPTIMER_H_
 #define GPTIMER_H_
+
+#define CC2538_NUM_GPTIMERS 4
+#define CC2538_NUM_SUBGPTIMERS 2
+#define CC2538_NUM_GPTIMER_INTERRUPT_TYPES 4
+#define GPTIMER_CHECK_VALID_TIMER(timer_index) \
+  do { if (timer_index >= CC2538_NUM_GPTIMERS) return -1; } while(0)
+#define GPTIMER_CHECK_VALID_SUBTIMER(subtimer_index) \
+  do { if (subtimer_index >= CC2538_NUM_SUBGPTIMERS) return -1; } while(0)
+#define GPTIMER_CHECK_VALID_INTERRUPT_TYPES(event) \
+  do { if (event >= CC2538_NUM_GPTIMER_INTERRUPT_TYPES) return -1; } while(0)
+
+
+
+/*---------------------------------------------------------------------------*/
+/** \name prototype for callbacks invoked by gptimer interrupts
+ * Subtimer definitions used for indexing interrupt functions
+ * @{
+ */
+#define GPTIMER_0 			   0
+#define GPTIMER_1              1
+#define GPTIMER_2              2
+#define GPTIMER_3              3
+#define GPTIMER_SUBTIMER_A	   0
+#define GPTIMER_SUBTIMER_B	   1
+
+// Functions
+// #define GPTIMER_TIMEOUT_EVENT          0
+// #define GPTIMER_CAPTURE_MATCH_EVENT    1
+// #define GPTIMER_CAPTURE_EVENT          2
+// #define GPTIMER_MATCH_EVENT            3
+
+// #define GPTIMER_ONE_SHOT_MODE	       0x00000001
+// #define GPTIMER_PERIODIC_MODE	       0x00000002
+// #define GPTIMER_CAPTURE_MODE		   0x00000003
+
+// #define GPTIMER_CAPTURE_MODE_EDGE_COUNT	0x00000000
+// #define GPTIMER_CAPTURE_MODE_EDGE_TIME	GPTIMER_TAMR_TACMR
+
+// #define GPTIMER_EVENT_MODE_POSITIVE_EDGE 0x00000000
+// #define GPTIMER_EVENT_MODE_NEGATIVE_EDGE 0x00000004
+// #define GPTIMER_EVENT_MODE_BOTH_EDGES    0x0000000C
+
+// #define GPTIMER_ALTERNATE_MODE_CAPTURE  0x00000000
+// #define GPTIMER_ALTERNATE_MODE_PWM		GPTIMER_TAMR_TAAMS
+
+// #define GPTIMER_COUNT_DIR_DOWN		    0x00000000
+// #define GPTIMER_COUNT_DIR_UP			GPTIMER_TAMR_TACDIR
+
+#define GPTIMER_TIMEOUT_INT				0
+#define GPTIMER_CAPTURE_MATCH_INT		1
+#define GPTIMER_CAPTURE_EVENT_INT		2
+#define GPTIMER_MATCH_INT 				3
+
+#define GPTIMER_ICR_A_MASK			    0xFFFEFF00
+#define GPTIMER_ICR_B_MASK			    0xFFFE00FF
+
+typedef void (* gptimer_callback_t)(uint8_t timer, uint8_t subtimer, uint8_t function, uint32_t gpt_time);
+
 /*---------------------------------------------------------------------------*/
 /** \name Base addresses for the GPT register instances
  * @{
@@ -50,6 +110,10 @@
 #define GPT_1_BASE             0x40031000 /**< GPTIMER1 */
 #define GPT_2_BASE             0x40032000 /**< GPTIMER2 */
 #define GPT_3_BASE             0x40033000 /**< GPTIMER3 */
+#define GPTIMER_0_BASE		   GPT_0_BASE
+#define GPTIMER_1_BASE         GPT_1_BASE
+#define GPTIMER_2_BASE		   GPT_2_BASE
+#define GPTIMER_3_BASE		   GPT_3_BASE
 /** @} */
 /*---------------------------------------------------------------------------*/
 /** \name GPTIMER Register offset declarations
@@ -84,6 +148,14 @@
 #define GPTIMER_PP            0x00000FC0 /**< GPTM peripheral properties  */
 /** @} */
 /*---------------------------------------------------------------------------*/
+/** \name  GPTIMER_CFG register bit values
+ * @{
+ */
+#define GPTIMER_CFG_GPTMCFG_32BIT_TIMER 0x00000000
+#define GPTIMER_CFG_GPTMCFG_32BIT_RTC   0x00000001
+#define GPTIMER_CFG_GPTMCFG_16BIT_TIMER 0x00000004
+/** @} */
+/*---------------------------------------------------------------------------*/
 /** \name  GPTIMER_CFG register bit masks
  * @{
  */
@@ -99,6 +171,13 @@
 #define GPTIMER_TBMR_TBMR_ONE_SHOT 0x00000001
 #define GPTIMER_TBMR_TBMR_PERIODIC 0x00000002
 #define GPTIMER_TBMR_TBMR_CAPTURE  0x00000003
+/** @} */
+/*---------------------------------------------------------------------------*/
+/** \name GPTIMER_TnMR register bit values
+ * @{
+ */
+ #define GPTIMER_TnMR_TnCMR_EDGE_COUNT 0x00000000
+ #define GPTIMER_TnMR_TnCMR_EDGE_TIME  0x00000004
 /** @} */
 /*---------------------------------------------------------------------------*/
 /** \name GPTIMER_TAMR register bit masks
@@ -327,6 +406,69 @@
 #define GPTIMER_PP_SIZE         0x0000000F /**< Timer size */
 /** @} */
 
+uint8_t ungate_gpt(uint8_t timer);
+uint8_t gate_gpt(uint8_t timer);
+
+uint8_t ungate_gpt_running(uint8_t timer);
+
+uint8_t ungate_gpt_sleeping(uint8_t timer);
+
+uint8_t ungate_gpt_pm0(uint8_t timer);
+
+uint8_t gate_gpt_running(uint8_t timer);
+
+uint8_t gate_gpt_sleeping(uint8_t timer);
+
+uint8_t gate_gpt_pm0(uint8_t timer);
+
+uint32_t get_event_time(uint8_t timer, uint8_t subtimer);
+
+void gpt_register_test_callback(gptimer_callback_t f);
+
+uint8_t gpt_register_callback(gptimer_callback_t f, uint8_t timer,
+							   uint8_t subtimer, uint8_t function);
+
+uint8_t gpt_set_16_bit_timer(uint8_t timer);
+
+uint8_t gpt_set_32_bit_timer(uint8_t timer);
+
+uint8_t gpt_set_mode(uint8_t timer, uint8_t subtimer, uint8_t mode);
+
+uint8_t gpt_set_capture_mode(uint8_t timer, uint8_t subtimer, uint32_t cap_mode);
+
+uint8_t gpt_set_alternate_mode(uint8_t timer, uint8_t subtimer, uint32_t alt_mode);
+
+uint8_t gpt_set_count_dir(uint8_t timer, uint8_t subtimer, uint32_t count_dir);
+
+uint8_t gpt_set_event_mode(uint8_t timer, uint8_t subtimer, uint32_t event_mode);
+
+uint8_t gpt_enable_event(uint8_t timer, uint8_t subtimer);
+
+uint8_t gpt_disable_event(uint8_t timer, uint8_t subtimer);
+
+uint8_t gpt_enable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t int_type);
+
+uint8_t gpt_disable_interrupt(uint8_t timer, uint8_t subtimer, uint8_t int_type);
+
+uint8_t gpt_set_interval_value(uint8_t timer, uint8_t subtimer, uint32_t interval_value);
+
+uint8_t gpt_set_match_value(uint8_t timer, uint8_t subtimer, uint32_t match_value);
+
+void gpt_0_a_isr();
+
+void gpt_0_b_isr();
+
+void gpt_1_a_isr();
+
+void gpt_1_b_isr();
+
+void gpt_2_a_isr();
+
+void gpt_2_b_isr();
+
+void gpt_3_a_isr();
+
+void gpt_3_b_isr();
 #endif /* GPTIMER_H_ */
 
 /**
