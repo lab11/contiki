@@ -8,12 +8,14 @@
 int
 pwm_init(uint8_t gptimer, uint8_t gpsubtimer, uint32_t freq, uint8_t port, uint8_t pin)
 {
+  uint32_t cycles = 16000000 / freq;
+
   ungate_gpt(gptimer);
   gpt_configure_timer(gptimer, GPTIMER_CFG_GPTMCFG_16BIT_TIMER);
   gpt_set_mode(gptimer, gpsubtimer, GPTIMER_TnMR_TnMR_PERIODIC);
   gpt_set_alternate_mode(gptimer, gpsubtimer, GPTIMER_TnMR_TnAMS_PWM_MODE);
-  gpt_set_interval_value(gptimer, gpsubtimer, 8000);
-  gpt_set_match_value(gptimer, gpsubtimer, 4000);
+  gpt_set_interval_value(gptimer, gpsubtimer, cycles);
+  gpt_set_match_value(gptimer, gpsubtimer, cycles/2);
 
   uint32_t ioc_sel = IOC_PXX_SEL_GPT0_ICP1 + (gptimer*2) + gpsubtimer;
   ioc_set_sel(port, pin, ioc_sel);
