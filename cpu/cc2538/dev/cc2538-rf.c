@@ -52,6 +52,8 @@
 #include "dev/leds.h"
 #include "vtimer.h"
 
+#include "opo.h"
+
 #include <string.h>
 /*---------------------------------------------------------------------------*/
 #define CHECKSUM_LEN 2
@@ -1004,6 +1006,7 @@ PROCESS_THREAD(cc2538_rf_process, ev, data)
 void
 cc2538_rf_rx_tx_isr(void)
 {
+
   if(REG(RFCORE_SFR_RFIRQF0) & RFCORE_XREG_RFIRQM0_SFD) {
     uint32_t sfd_time = VTIMER_NOW();
 
@@ -1012,28 +1015,24 @@ cc2538_rf_rx_tx_isr(void)
       ) {
 
       uint32_t diff = sfd_time - opo_initial_time;
-      uint16_t chksum_bal;
-      uint32_t offset = (last_length-8)*4;
+      //uint16_t chksum_bal;
+      uint32_t offset = (last_length-5)*4;
 
-      chksum_bal = ((diff >> 16) & 0xFFFF) + (diff & 0xFFFF);
-      chksum_bal = 0xFFFF - chksum_bal;
+      //chksum_bal = ((diff >> 16) & 0xFFFF) + (diff & 0xFFFF);
+      //chksum_bal = 0xFFFF - chksum_bal;
 
       // Insert the time difference into the packet
-      REG(0x40088200+offset+ 0) = (diff >> 24) & 0xFF;
-      REG(0x40088200+offset+ 4) = (diff >> 16) & 0xFF;
-      REG(0x40088200+offset+ 8) = (diff >>  8) & 0xFF;
-      REG(0x40088200+offset+12) = (diff >>  0) & 0xFF;
+      REG(0x40088200+offset+ 0) = (diff >> 0) & 0xFF;
+      REG(0x40088200+offset+ 4) = (diff >> 8) & 0xFF;
+      REG(0x40088200+offset+ 8) = (diff >> 16) & 0xFF;
+      REG(0x40088200+offset+12) = (diff >> 24) & 0xFF;
 
       // Update the checksum balancer
-      REG(0x40088200+offset+16) = (chksum_bal >> 8) & 0xFF;
-      REG(0x40088200+offset+20) = (chksum_bal >> 0) & 0xFF;
+      //REG(0x40088200+offset+16) = (chksum_bal >> 8) & 0xFF;
+      //REG(0x40088200+offset+20) = (chksum_bal >> 0) & 0xFF;
 
       last_length = 0;
       opo_initial_time = 0;
-      leds_toggle(LEDS_RED);
-      if(diff < 0x0160) {
-        leds_toggle(LEDS_BLUE);
-      }
     }
   }
 
