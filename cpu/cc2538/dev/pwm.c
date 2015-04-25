@@ -5,10 +5,12 @@
 #include "pwm.h"
 #include "gptimer.h"
 
+static uint32_t cycles;
+
 int
 pwm_init(uint8_t gptimer, uint8_t gpsubtimer, uint32_t freq, uint8_t port, uint8_t pin)
 {
-  uint32_t cycles = 16000000 / freq;
+  cycles = 16000000 / freq;
 
   ungate_gpt(gptimer);
   gpt_configure_timer(gptimer, GPTIMER_CFG_GPTMCFG_16BIT_TIMER);
@@ -38,7 +40,10 @@ pwm_stop(uint8_t gptimer, uint8_t gpsubtimer)
   gpt_disable_event(gptimer, gpsubtimer);
 }
 
-
+int pwm_set_dutycycle(uint8_t gptimer, uint8_t gpsubtimer, uint32_t dc) {
+  uint32_t new_cycles = ((100-dc) * cycles) / 100;
+  gpt_set_match_value(gptimer, gpsubtimer, new_cycles);
+}
 
 
 
