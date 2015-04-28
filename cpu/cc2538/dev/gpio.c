@@ -115,9 +115,29 @@ GPIO_PORT_ISR(b, B)
 GPIO_PORT_ISR(c, C)
 GPIO_PORT_ISR(d, D)
 /*---------------------------------------------------------------------------*/
+static comparator_callback_t comparator0_callback;
+
+void comparator_register_callback(comparator_callback_t f){
+  comparator0_callback = f;
+}
+
+void comparator0_isr(){
+  lpm_exit();
+
+  ENERGEST_ON(ENERGEST_TYPE_IRQ);
+
+  (*comparator0_callback)();
+
+  GPIO_CLEAR_INTERRUPT(GPIO_A_BASE, 0xFF);
+  GPIO_CLEAR_POWER_UP_INTERRUPT(GPIO_A_NUM, 0xFF);
+
+  ENERGEST_OFF(ENERGEST_TYPE_IRQ);
+}
+/*---------------------------------------------------------------------------*/
 void
 gpio_init()
 {
   memset(gpio_callbacks, 0, sizeof(gpio_callbacks));
+  comparator0_callback = 0;
 }
 /** @} */

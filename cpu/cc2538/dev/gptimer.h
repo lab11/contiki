@@ -490,6 +490,8 @@ void gpt_2_b_isr();
 void gpt_3_a_isr();
 
 void gpt_3_b_isr();
+
+uint32_t get_event_time(uint8_t timer, uint8_t subtimer);
 #endif /* GPTIMER_H_ */
 
 /**

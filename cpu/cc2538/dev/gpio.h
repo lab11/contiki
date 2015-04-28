@@ -63,6 +63,7 @@
  * re-use the same callback for multiple port/pin combinations
  */
 typedef void (* gpio_callback_t)(uint8_t port, uint8_t pin);
+typedef void (* comparator_callback_t)();
 /*---------------------------------------------------------------------------*/
 /** \name Base addresses for the GPIO register instances
  * @{
@@ -612,6 +613,8 @@ void gpio_init();
  *        (0, 1, ..., 7)
  */
 void gpio_register_callback(gpio_callback_t f, uint8_t port, uint8_t pin);
+
+void comparator_register_callback(comparator_callback_t f);
 
 #endif /* GPIO_H_ */
 
