@@ -87,7 +87,7 @@ gpio_port_a_isr()
 
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
-  notify(REG(GPIO_A_BASE | GPIO_MIS), GPIO_A_NUM);
+  notify(REG(GPIO_A_BASE + GPIO_MIS), GPIO_A_NUM);
 
   GPIO_CLEAR_INTERRUPT(GPIO_A_BASE, 0xFF);
   GPIO_CLEAR_POWER_UP_INTERRUPT(GPIO_A_NUM, 0xFF);
@@ -103,7 +103,7 @@ gpio_port_b_isr()
 
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
-  notify(REG(GPIO_B_BASE | GPIO_MIS), GPIO_B_NUM);
+  notify(REG(GPIO_B_BASE + GPIO_MIS), GPIO_B_NUM);
 
   GPIO_CLEAR_INTERRUPT(GPIO_B_BASE, 0xFF);
   GPIO_CLEAR_POWER_UP_INTERRUPT(GPIO_B_NUM, 0xFF);
@@ -119,7 +119,7 @@ gpio_port_c_isr()
 
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
-  notify(REG(GPIO_C_BASE | GPIO_MIS), GPIO_C_NUM);
+  notify(REG(GPIO_C_BASE + GPIO_MIS), GPIO_C_NUM);
 
   GPIO_CLEAR_INTERRUPT(GPIO_C_BASE, 0xFF);
   GPIO_CLEAR_POWER_UP_INTERRUPT(GPIO_C_NUM, 0xFF);
@@ -135,10 +135,29 @@ gpio_port_d_isr()
 
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
-  notify(REG(GPIO_D_BASE | GPIO_MIS), GPIO_D_NUM);
+  notify(REG(GPIO_D_BASE + GPIO_MIS), GPIO_D_NUM);
 
   GPIO_CLEAR_INTERRUPT(GPIO_D_BASE, 0xFF);
   GPIO_CLEAR_POWER_UP_INTERRUPT(GPIO_D_NUM, 0xFF);
+
+  ENERGEST_OFF(ENERGEST_TYPE_IRQ);
+}
+/*---------------------------------------------------------------------------*/
+static comparator_callback_t comparator0_callback;
+
+void comparator_register_callback(comparator_callback_t f){
+  comparator0_callback = f;
+}
+
+void comparator0_isr(){
+  lpm_exit();
+
+  ENERGEST_ON(ENERGEST_TYPE_IRQ);
+
+  (*comparator0_callback)();
+
+  GPIO_CLEAR_INTERRUPT(GPIO_A_BASE, 0xFF);
+  GPIO_CLEAR_POWER_UP_INTERRUPT(GPIO_A_NUM, 0xFF);
 
   ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
@@ -147,5 +166,6 @@ void
 gpio_init()
 {
   memset(gpio_callbacks, 0, sizeof(gpio_callbacks));
+  comparator0_callback = 0;
 }
 /** @} */

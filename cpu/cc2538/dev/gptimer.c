@@ -88,7 +88,7 @@ gate_gpt_pm0(uint8_t timer)
   return 0;
 }
 
-static uint32_t
+uint32_t
 get_event_time(uint8_t timer, uint8_t subtimer)
 {
   uint32_t timer_base = TIMER_TO_BASE[timer];
@@ -179,7 +179,7 @@ static void run_callbacks(uint8_t timer, uint8_t subtimer,
 inline void
 clear_gpt_interrupt(uint32_t timer_base, uint32_t icr_mask)
 {
-  REG(timer_base | GPTIMER_ICR) &= icr_mask;
+  REG(timer_base | GPTIMER_ICR) |= (~icr_mask);
 }
 
 
@@ -411,13 +411,12 @@ void gpt_0_b_isr(void) {
 
 void gpt_1_a_isr(void) {
   lpm_exit();
-  nvic_interrupt_disable(NVIC_INT_GPTIMER_1A);
-  leds_on(LEDS_RED);
+  //nvic_interrupt_disable(NVIC_INT_GPTIMER_1A);
+  //leds_on(LEDS_RED);
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
-  printf("GPT: %lu\n", REG(GPT_1_BASE | GPTIMER_MIS));
+  //printf("GPT: %lu\n", REG(GPT_1_BASE | GPTIMER_MIS));
   run_callbacks(GPTIMER_1, GPTIMER_SUBTIMER_A, REG(GPT_1_BASE | GPTIMER_MIS));
   clear_gpt_interrupt(GPTIMER_1_BASE, GPTIMER_ICR_A_MASK);
-
   ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
 
