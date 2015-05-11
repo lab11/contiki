@@ -45,6 +45,7 @@ extern uint16_t uip_slen;
 #include "net/ipv6/multicast/uip-mcast6.h"
 
 #include <string.h>
+#include <stdio.h>
 
 /*---------------------------------------------------------------------------*/
 void
@@ -54,16 +55,28 @@ uip_udp_packet_send(struct uip_udp_conn *c, const void *data, int len)
   if(data != NULL) {
     uip_udp_conn = c;
     uip_slen = len;
-    memcpy(&uip_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN], data,
-           len > UIP_BUFSIZE - UIP_LLH_LEN - UIP_IPUDPH_LEN?
-           UIP_BUFSIZE - UIP_LLH_LEN - UIP_IPUDPH_LEN: len);
+    // memcpy(&uip_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN], data,
+    //        len > UIP_BUFSIZE - UIP_LLH_LEN - UIP_IPUDPH_LEN?
+    //        UIP_BUFSIZE - UIP_LLH_LEN - UIP_IPUDPH_LEN: len);
+
+    uint8_t local_buf[1024];
+    int cp_len = len > UIP_BUFSIZE - UIP_LLH_LEN - UIP_IPUDPH_LEN?
+             UIP_BUFSIZE - UIP_LLH_LEN - UIP_IPUDPH_LEN: len;
+
+    memcpy(local_buf, data, cp_len);
+
+    printf("UDP MEMCPY: %p ?= %p\n", data, &uip_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN]);
+    if (&uip_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN] != data) {
+      memcpy(&uip_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN], local_buf, cp_len);
+    }
+
     uip_process(UIP_UDP_SEND_CONN);
 
 #if UIP_CONF_IPV6_MULTICAST
-  /* Let the multicast engine process the datagram before we send it */
-  if(uip_is_addr_mcast_routable(&uip_udp_conn->ripaddr)) {
-    UIP_MCAST6.out();
-  }
+    /* Let the multicast engine process the datagram before we send it */
+    if(uip_is_addr_mcast_routable(&uip_udp_conn->ripaddr)) {
+      UIP_MCAST6.out();
+    }
 #endif /* UIP_IPV6_MULTICAST */
 
 #if NETSTACK_CONF_WITH_IPV6
