@@ -101,7 +101,7 @@ get_event_time(uint8_t timer, uint8_t subtimer)
   }
 
   // Check for 16 bit timer
-  if(REG(timer_base | GPTIMER_CFG) == 0x04) {
+  if((REG(timer_base | GPTIMER_CFG)&0x7) == 0x04) {
     gpt_time &= 0x0000FFFF;
   }
 
