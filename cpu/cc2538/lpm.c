@@ -41,10 +41,11 @@
 #include "dev/sys-ctrl.h"
 #include "dev/scb.h"
 #include "dev/rfcore-xreg.h"
-#include "rtimer-arch.h"
+#include "vtimer-arch.h"
 #include "lpm.h"
 #include "reg.h"
 #include "dev/leds.h"
+#include "vtimer.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -65,7 +66,7 @@ static unsigned long irq_energest = 0;
 #endif
 /*---------------------------------------------------------------------------*/
 /*
- * Deep Sleep thresholds in rtimer ticks (~30.5 usec)
+ * Deep Sleep thresholds in vtimer ticks (~30.5 usec)
  *
  * If Deep Sleep duration < DEEP_SLEEP_PM1_THRESHOLD, simply enter PM0
  * If duration < DEEP_SLEEP_PM2_THRESHOLD drop to PM1
@@ -77,7 +78,7 @@ static unsigned long irq_energest = 0;
 #define assert_wfi() do { asm("wfi"::); } while(0)
 /*---------------------------------------------------------------------------*/
 #if LPM_CONF_STATS
-rtimer_clock_t lpm_stats[3];
+vtimer_clock_t lpm_stats[3];
 
 #define LPM_STATS_INIT()         do { memset(lpm_stats, 0, sizeof(lpm_stats)); \
   } while(0)
@@ -91,7 +92,7 @@ rtimer_clock_t lpm_stats[3];
  * Remembers what time it was when went to deep sleep
  * This is used when coming out of PM0/1/2 to keep stats
  */
-static rtimer_clock_t sleep_enter_time;
+static vtimer_clock_t sleep_enter_time;
 
 void clock_adjust(void);
 /*---------------------------------------------------------------------------*/
@@ -141,13 +142,13 @@ enter_pm0(void)
 
   /* Remember the current time so we can keep stats when we wake up */
   if(LPM_CONF_STATS) {
-    sleep_enter_time = RTIMER_NOW();
+    sleep_enter_time = VTIMER_NOW();
   }
 
   assert_wfi();
 
   /* We reach here when the interrupt context that woke us up has returned */
-  LPM_STATS_ADD(0, RTIMER_NOW() - sleep_enter_time);
+  LPM_STATS_ADD(0, VTIMER_NOW() - sleep_enter_time);
 
   /* Remember IRQ energest for next pass */
   ENERGEST_IRQ_SAVE(irq_energest);
@@ -201,7 +202,7 @@ lpm_exit()
   }
 
   /*
-   * When returning from PM1/2, the sleep timer value (used by RTIMER_NOW()) is
+   * When returning from PM1/2, the sleep timer value (used by VTIMER_NOW()) is
    * not up-to-date until a positive edge on the 32-kHz clock has been detected
    * after the system clock restarted. To ensure an updated value is read, wait
    * for a positive transition on the 32-kHz clock by polling the
@@ -211,10 +212,10 @@ lpm_exit()
   while(!(REG(SYS_CTRL_CLOCK_STA) & SYS_CTRL_CLOCK_STA_SYNC_32K));
 
   LPM_STATS_ADD(REG(SYS_CTRL_PMCTL) & SYS_CTRL_PMCTL_PM3,
-                RTIMER_NOW() - sleep_enter_time);
+                VTIMER_NOW() - sleep_enter_time);
 
   /* Adjust the system clock, since it was not counting while we were sleeping
-   * We need to convert sleep duration from rtimer ticks to clock ticks */
+   * We need to convert sleep duration from vtimer ticks to clock ticks */
   clock_adjust();
 
   /* Restore system clock to the 32 MHz XOSC */
@@ -233,9 +234,9 @@ lpm_exit()
 void
 lpm_enter()
 {
-  rtimer_clock_t lpm_exit_time;
-  rtimer_clock_t duration;
-  rtimer_clock_t lpm_current_time;
+  vtimer_clock_t lpm_exit_time;
+  vtimer_clock_t duration;
+  vtimer_clock_t lpm_current_time;
 
   /*
    * If either the RF or the registered peripherals are on, dropping to PM1/2
@@ -252,12 +253,12 @@ lpm_enter()
 
   /*
    * Registered peripherals were off. Radio was off: Some Duty Cycling in place.
-   * rtimers run on the Sleep Timer. Thus, if we have a scheduled rtimer
+   * vtimers run on the Sleep Timer. Thus, if we have a scheduled vtimer
    * task, a Sleep Timer interrupt will fire and will wake us up.
    * Choose the most suitable PM based on anticipated deep sleep duration
    */
-  lpm_exit_time = rtimer_arch_next_trigger();
-  lpm_current_time = RTIMER_NOW();
+  lpm_exit_time = vtimer_arch_next_trigger();
+  lpm_current_time = VTIMER_NOW();
   duration = lpm_exit_time > lpm_current_time ? (lpm_exit_time - lpm_current_time) : (lpm_exit_time + (UINT32_MAX - lpm_current_time));
 
   if(lpm_exit_time == 0 && LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) {
@@ -269,7 +270,7 @@ lpm_enter()
     assert_wfi();
   }
   else if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) {
-    /* Anticipated duration too short or no scheduled rtimer task. Use PM0 */
+    /* Anticipated duration too short or no scheduled vtimer task. Use PM0 */
     enter_pm0();
 
     /* We reach here when the interrupt context that woke us up has returned */
@@ -285,7 +286,7 @@ lpm_enter()
    * Switching the System Clock from the 32MHz XOSC to the 16MHz RC OSC may
    * have taken a while. Re-estimate sleep duration.
    */
-  lpm_current_time = RTIMER_NOW();
+  lpm_current_time = VTIMER_NOW();
   duration = lpm_exit_time > lpm_current_time ? (lpm_exit_time - lpm_current_time) : (lpm_exit_time + (UINT32_MAX - lpm_current_time));
 
 
@@ -317,7 +318,7 @@ lpm_enter()
 
   /* Remember the current time so we can keep stats when we wake up */
   if(LPM_CONF_STATS) {
-    sleep_enter_time = RTIMER_NOW();
+    sleep_enter_time = VTIMER_NOW();
   }
 
   /*
@@ -327,11 +328,11 @@ lpm_enter()
    *   were trying to make up our mind. This may have raised an event.
    * - The Sleep Timer may have fired
    *
-   * Check if there is still a scheduled rtimer task and check for pending
+   * Check if there is still a scheduled vtimer task and check for pending
    * events before going to Deep Sleep
    */
-  if(process_nevents() || (rtimer_arch_next_trigger() == 0 && !LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP)){
-    /* Event flag raised or rtimer inactive.
+  if(process_nevents() || (vtimer_arch_next_trigger() == 0 && !LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP)){
+    /* Event flag raised or vtimer inactive.
      * Turn on the 32MHz XOSC, restore PMCTL and abort */
     select_32_mhz_xosc();
 
