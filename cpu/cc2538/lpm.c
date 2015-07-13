@@ -237,16 +237,13 @@ lpm_enter()
   vtimer_clock_t lpm_exit_time;
   vtimer_clock_t duration;
   vtimer_clock_t lpm_current_time;
-
   /*
    * If either the RF or the registered peripherals are on, dropping to PM1/2
    * would equal pulling the rug (32MHz XOSC) from under their feet. Thus, we
    * only drop to PM0. PM0 is also used if max_pm==0.
    */
-  if((REG(RFCORE_XREG_FSMSTAT0) & RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE) != 0
-     || !periph_permit_pm1() || max_pm == 0) {
+  if((REG(RFCORE_XREG_FSMSTAT0) & RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE) != 0 || !periph_permit_pm1() || max_pm == 0) {
     enter_pm0();
-
     /* We reach here when the interrupt context that woke us up has returned */
     return;
   }
@@ -261,18 +258,9 @@ lpm_enter()
   lpm_current_time = VTIMER_NOW();
   duration = lpm_exit_time > lpm_current_time ? (lpm_exit_time - lpm_current_time) : (lpm_exit_time + (UINT32_MAX - lpm_current_time));
 
-  if(lpm_exit_time == 0 && LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) {
-    REG(SCB_SYSCTRL) |= SCB_SYSCTRL_SLEEPDEEP;
-    REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM2;
-    ENERGEST_IRQ_RESTORE(irq_energest);
-    ENERGEST_OFF(ENERGEST_TYPE_CPU);
-    ENERGEST_ON(ENERGEST_TYPE_LPM);
-    assert_wfi();
-  }
-  else if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) {
+  if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0 && !LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) {
     /* Anticipated duration too short or no scheduled vtimer task. Use PM0 */
     enter_pm0();
-
     /* We reach here when the interrupt context that woke us up has returned */
     return;
   }
@@ -289,8 +277,7 @@ lpm_enter()
   lpm_current_time = VTIMER_NOW();
   duration = lpm_exit_time > lpm_current_time ? (lpm_exit_time - lpm_current_time) : (lpm_exit_time + (UINT32_MAX - lpm_current_time));
 
-
-  if(duration < DEEP_SLEEP_PM1_THRESHOLD) {
+  if(duration < DEEP_SLEEP_PM1_THRESHOLD && !LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) {
     /*
      * oops... The clock switch took some time and now the remaining sleep
      * duration is too short. Restore the clock source to the 32MHz XOSC and
@@ -298,10 +285,10 @@ lpm_enter()
      * we need to yield to main() since we may have events to service now.
      */
     select_32_mhz_xosc();
-
     return;
-  } else if(duration >= DEEP_SLEEP_PM2_THRESHOLD && max_pm == 2) {
+  } else if( (duration >= DEEP_SLEEP_PM2_THRESHOLD || LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) && max_pm == 2) {
     /* Long sleep duration and PM2 is allowed. Use it */
+    //REG(SCB_SYSCTRL) |= SCB_SYSCTRL_SLEEPDEEP;
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM2;
   } else {
     /*
@@ -309,16 +296,6 @@ lpm_enter()
      * are allowed to use PM1
      */
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM1;
-  }
-
-  /* We are only interested in IRQ energest while idle or in LPM */
-  ENERGEST_IRQ_RESTORE(irq_energest);
-  ENERGEST_OFF(ENERGEST_TYPE_CPU);
-  ENERGEST_ON(ENERGEST_TYPE_LPM);
-
-  /* Remember the current time so we can keep stats when we wake up */
-  if(LPM_CONF_STATS) {
-    sleep_enter_time = VTIMER_NOW();
   }
 
   /*
@@ -337,11 +314,6 @@ lpm_enter()
     select_32_mhz_xosc();
 
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM0;
-
-    /* Remember IRQ energest for next pass */
-    ENERGEST_IRQ_SAVE(irq_energest);
-    ENERGEST_ON(ENERGEST_TYPE_CPU);
-    ENERGEST_OFF(ENERGEST_TYPE_LPM);
   } else {
     /* All clear. Assert WFI and drop to PM1/2. This is now un-interruptible */
     assert_wfi();
