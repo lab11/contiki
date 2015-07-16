@@ -49,6 +49,7 @@
 #include "dev/sys-ctrl.h"
 #include "dev/udma.h"
 #include "reg.h"
+#include "leds.h"
 
 #include <string.h>
 /*---------------------------------------------------------------------------*/
@@ -600,11 +601,13 @@ transmit(unsigned short transmit_len)
   if(!(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE)) {
     PRINTF("RF: TX never active.\n");
     CC2538_RF_CSP_ISFLUSHTX();
+    printf("RF FAIL\r\n");
     ret = RADIO_TX_ERR;
   } else {
     /* Wait for the transmission to finish */
     while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
     ret = RADIO_TX_OK;
+    printf("RF COOL\r\n");
   }
   ENERGEST_OFF(ENERGEST_TYPE_TRANSMIT);
   ENERGEST_ON(ENERGEST_TYPE_LISTEN);
@@ -718,19 +721,19 @@ read(void *buf, unsigned short bufsize)
     return 0;
   }
 
-#if CC2538_RF_CONF_SNIFFER
-  write_byte(magic[0]);
-  write_byte(magic[1]);
-  write_byte(magic[2]);
-  write_byte(magic[3]);
-  write_byte(len + 2);
-  for(i = 0; i < len; ++i) {
-    write_byte(((unsigned char *)(buf))[i]);
-  }
-  write_byte(rssi);
-  write_byte(crc_corr);
-  flush();
-#endif
+//#if CC2538_RF_CONF_SNIFFER
+//  write_byte(magic[0]);
+//  write_byte(magic[1]);
+//  write_byte(magic[2]);
+//  write_byte(magic[3]);
+//  write_byte(len + 2);
+//  for(i = 0; i < len; ++i) {
+//    write_byte(((unsigned char *)(buf))[i]);
+//  }
+//  write_byte(rssi);
+//  write_byte(crc_corr);
+//  flush();
+//#endif
 
   /* If FIFOP==1 and FIFO==0 then we had a FIFO overflow at some point. */
   if(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_FIFOP) {
@@ -934,6 +937,54 @@ const struct radio_driver cc2538_rf_driver = {
   get_object,
   set_object
 };
+
+uint8_t cc2538_on_and_transmit() {
+ uint8_t i;
+ uint8_t counter;
+ int ret = RADIO_TX_ERR;
+ void *payload;
+ unsigned short payload_len;
+
+ packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
+
+ if(NETSTACK_FRAMER.create() < 0) {
+   /* Failed to allocate space for headers */
+   return MAC_TX_ERR_FATAL;
+ }
+
+ payload = packetbuf_hdrptr();
+ payload_len = packetbuf_totlen();
+
+ CC2538_RF_CSP_ISFLUSHTX();
+ /* Send the phy length byte first */
+ REG(RFCORE_SFR_RFDATA) = payload_len + CHECKSUM_LEN;
+
+ /* Fuck your dma */
+ for(i = 0; i < payload_len; i++) {
+   REG(RFCORE_SFR_RFDATA) = ((unsigned char *)(payload))[i];
+ }
+
+/*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+ CC2538_RF_CSP_ISTXON();
+
+ counter = 0;
+ while(!((REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE))
+       && (counter++ < 3)) {
+   clock_delay_usec(6);
+ }
+
+ if(!(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE)) {
+   CC2538_RF_CSP_ISFLUSHTX();
+   ret = RADIO_TX_ERR;
+ } else {
+   /* Wait for the transmission to finish */
+   while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
+   ret = RADIO_TX_OK;
+ }
+
+ return ret;
+}
 /*---------------------------------------------------------------------------*/
 /**
  * \brief Implementation of the cc2538 RF driver process

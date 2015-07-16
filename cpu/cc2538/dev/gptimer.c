@@ -122,7 +122,7 @@ gpt_register_callback(gptimer_callback_t f, uint8_t timer,
 
   uint8_t timer_index = timer * 8;
   uint8_t subtimer_index = subtimer * 4;
-  printf("callindex: %u\n", timer_index + subtimer_index + interrupt_type);
+  //printf("callindex: %u\n", timer_index + subtimer_index + interrupt_type);
   gptimer_callbacks[timer_index + subtimer_index + interrupt_type] = f;
 
   return 0;
@@ -412,9 +412,9 @@ void gpt_0_b_isr(void) {
 void gpt_1_a_isr(void) {
   lpm_exit();
   //nvic_interrupt_disable(NVIC_INT_GPTIMER_1A);
-  //leds_on(LEDS_RED);
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
   //printf("GPT: %lu\n", REG(GPT_1_BASE | GPTIMER_MIS));
+  //leds_on(LEDS_RED);
   run_callbacks(GPTIMER_1, GPTIMER_SUBTIMER_A, REG(GPT_1_BASE | GPTIMER_MIS));
   clear_gpt_interrupt(GPTIMER_1_BASE, GPTIMER_ICR_A_MASK);
   ENERGEST_OFF(ENERGEST_TYPE_IRQ);
@@ -425,7 +425,7 @@ void gpt_1_b_isr(void) {
     ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
     run_callbacks(GPTIMER_0, GPTIMER_SUBTIMER_B, REG(GPT_0_BASE | GPTIMER_MIS));
-    //clear_gpt_interrupt(GPTIMER_1_BASE, GPTIMER_ICR_B_MASK);
+    clear_gpt_interrupt(GPTIMER_1_BASE, GPTIMER_ICR_B_MASK);
 
     ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
@@ -435,8 +435,7 @@ void gpt_2_a_isr(void) {
     ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
     run_callbacks(GPTIMER_2, GPTIMER_SUBTIMER_A, REG(GPT_2_BASE | GPTIMER_MIS));
-    //clear_gpt_interrupt(GPTIMER_2_BASE, GPTIMER_ICR_A_MASK);
-
+    clear_gpt_interrupt(GPTIMER_2_BASE, GPTIMER_ICR_A_MASK);
     ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 
 }

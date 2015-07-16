@@ -123,11 +123,12 @@ input(void)
 static void
 init(void)
 {
+  /*
   queuebuf_init();
   packetbuf_clear();
   announcement_init();
 
-  chameleon_init();
+  chameleon_init(); */
   
   /* XXX This is initializes the transmission of announcements but it
    * is not currently certain where this initialization is supposed to
@@ -137,10 +138,11 @@ init(void)
    * for now, and should at least get us started with experimenting
    * with announcements.
    */
+   /*
   broadcast_announcement_init(BROADCAST_ANNOUNCEMENT_CHANNEL,
                               BROADCAST_ANNOUNCEMENT_BUMP_TIME,
                               BROADCAST_ANNOUNCEMENT_MIN_TIME,
-                              BROADCAST_ANNOUNCEMENT_MAX_TIME);
+                              BROADCAST_ANNOUNCEMENT_MAX_TIME); */
 }
 /*---------------------------------------------------------------------------*/
 static void
