@@ -43,7 +43,7 @@
 
 #include "net/rpl/rpl-private.h"
 
-#define DEBUG DEBUG_NONE
+#define DEBUG DEBUG_FULL
 #include "net/ip/uip-debug.h"
 
 static void reset(rpl_dag_t *);

@@ -57,7 +57,7 @@
 #include <limits.h>
 #include <string.h>
 
-#define DEBUG DEBUG_NONE
+#define DEBUG DEBUG_FULL
 #include "net/ip/uip-debug.h"
 
 /*---------------------------------------------------------------------------*/
@@ -154,7 +154,7 @@ rpl_get_parent_link_metric(const uip_lladdr_t *addr)
 {
   uip_ds6_nbr_t *nbr;
   nbr = nbr_table_get_from_lladdr(ds6_neighbors, (const linkaddr_t *)addr);
-  
+
   if(nbr != NULL) {
     return nbr->link_metric;
   } else {
@@ -411,6 +411,7 @@ check_prefix(rpl_prefix_t *last_prefix, rpl_prefix_t *new_prefix)
      uip_ipaddr_prefixcmp(&last_prefix->prefix, &new_prefix->prefix, new_prefix->length) &&
      last_prefix->flags == new_prefix->flags) {
     /* Nothing has changed. */
+    PRINTF("RPL: not setting global IP address nothing changed");
     return;
   }
 
@@ -432,6 +433,8 @@ check_prefix(rpl_prefix_t *last_prefix, rpl_prefix_t *new_prefix)
       PRINT6ADDR(&ipaddr);
       PRINTF("\n");
       uip_ds6_addr_add(&ipaddr, 0, ADDR_AUTOCONF);
+    } else {
+      PRINTF("RPL: adding global IP address not null ");
     }
   }
 }
@@ -635,7 +638,7 @@ rpl_add_parent(rpl_dag_t *dag, rpl_dio_t *dio, uip_ipaddr_t *addr)
       p->dag = dag;
       p->rank = dio->rank;
       p->dtsn = dio->dtsn;
-      
+
       /* Check whether we have a neighbor that has not gotten a link metric yet */
       if(nbr != NULL && nbr->link_metric == 0) {
 	nbr->link_metric = RPL_INIT_LINK_METRIC * RPL_DAG_MC_ETX_DIVISOR;
@@ -1314,8 +1317,8 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
 
 
   if(dio->rank < ROOT_RANK(instance)) {
-    PRINTF("RPL: Ignoring DIO with too low rank: %u\n",
-           (unsigned)dio->rank);
+    PRINTF("RPL: Ignoring DIO with too low rank: %u < %u\n",
+           (unsigned)dio->rank, ROOT_RANK(instance));
     return;
   } else if(dio->rank == INFINITE_RANK && dag->joined) {
     rpl_reset_dio_timer(instance);

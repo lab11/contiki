@@ -50,7 +50,7 @@
 #include "net/rpl/rpl-private.h"
 #include "net/packetbuf.h"
 
-#define DEBUG DEBUG_NONE
+#define DEBUG DEBUG_FULL
 #include "net/ip/uip-debug.h"
 
 #include <limits.h>
