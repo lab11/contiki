@@ -142,7 +142,7 @@ rtimer_isr()
    * before calling the next rtimer_task, since the task may need the RF.
    */
   lpm_exit();
-
+  printf("IN RTIMER ISR\n");
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
   next_trigger = 0;

@@ -123,6 +123,8 @@ static const uint8_t magic[] = { 0x53, 0x6E, 0x69, 0x66 };      /** Snif */
 static uint8_t rf_flags;
 static uint8_t rf_channel = CC2538_RF_CHANNEL;
 
+static uint8_t last_length = 0;
+
 static int on(void);
 static int off(void);
 /*---------------------------------------------------------------------------*/
@@ -933,6 +935,56 @@ const struct radio_driver cc2538_rf_driver = {
   get_object,
   set_object
 };
+
+uint8_t cc2538_on_and_transmit() {
+  uint8_t i;
+  uint8_t counter;
+  int ret = RADIO_TX_ERR;
+  void *payload;
+  unsigned short payload_len;
+
+  packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
+
+  if(NETSTACK_FRAMER.create() < 0) {
+    /* Failed to allocate space for headers */
+    return MAC_TX_ERR_FATAL;
+  }
+
+  payload = packetbuf_hdrptr();
+  payload_len = packetbuf_totlen();
+
+  CC2538_RF_CSP_ISFLUSHTX();
+
+  /* Send the phy length byte first */
+  REG(RFCORE_SFR_RFDATA) = payload_len + CHECKSUM_LEN;
+  last_length = payload_len + CHECKSUM_LEN;
+
+  /* Fuck your dma */
+  for(i = 0; i < payload_len; i++) {
+    REG(RFCORE_SFR_RFDATA) = ((unsigned char *)(payload))[i];
+  }
+
+/*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+  CC2538_RF_CSP_ISTXON();
+
+  counter = 0;
+  while(!((REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE))
+        && (counter++ < 3)) {
+    clock_delay_usec(6);
+  }
+
+  if(!(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE)) {
+    CC2538_RF_CSP_ISFLUSHTX();
+    ret = RADIO_TX_ERR;
+  } else {
+    /* Wait for the transmission to finish */
+    while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
+    ret = RADIO_TX_OK;
+  }
+
+  return ret;
+}
 /*---------------------------------------------------------------------------*/
 /**
  * \brief Implementation of the cc2538 RF driver process

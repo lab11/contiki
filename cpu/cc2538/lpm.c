@@ -49,6 +49,8 @@
 #include <stdint.h>
 #include <string.h>
 
+ #include <stdio.h>
+
 #if LPM_CONF_ENABLE != 0
 /*---------------------------------------------------------------------------*/
 #if ENERGEST_CONF_ON
@@ -70,8 +72,8 @@ static unsigned long irq_energest = 0;
  * If duration < DEEP_SLEEP_PM2_THRESHOLD drop to PM1
  * else PM2.
  */
-#define DEEP_SLEEP_PM1_THRESHOLD    10
-#define DEEP_SLEEP_PM2_THRESHOLD    100
+#define DEEP_SLEEP_PM1_THRESHOLD    5
+#define DEEP_SLEEP_PM2_THRESHOLD    10
 /*---------------------------------------------------------------------------*/
 #define assert_wfi() do { asm("wfi"::); } while(0)
 /*---------------------------------------------------------------------------*/
@@ -236,13 +238,19 @@ lpm_enter()
    * would equal pulling the rug (32MHz XOSC) from under their feet. Thus, we
    * only drop to PM0. PM0 is also used if max_pm==0.
    */
-  if((REG(RFCORE_XREG_FSMSTAT0) & RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE) != 0
-     || !periph_permit_pm1() || max_pm == 0) {
-    enter_pm0();
+   //printf("RFCORE_XREG_FSMSTAT0: %d\n", REG(RFCORE_XREG_FSMSTAT0));
+   //printf("RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE: %d\n", RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE);
+   //printf("periph_permit_pm1: %d\n", periph_permit_pm1);
+   //printf("max_pm: %d\n", max_pm);
+  //if((REG(RFCORE_XREG_FSMSTAT0) & RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE) != 0
+  //   || !periph_permit_pm1() || max_pm == 0) {
+  //  enter_pm0();
 
     /* We reach here when the interrupt context that woke us up has returned */
-    return;
-  }
+  //printf("periphs were on\n");
+  //leds_toggle(LEDS_RED);
+  //  return;
+  //}
 
   /*
    * Registered peripherals were off. Radio was off: Some Duty Cycling in place.
@@ -252,9 +260,11 @@ lpm_enter()
    */
   lpm_exit_time = rtimer_arch_next_trigger();
   duration = lpm_exit_time - RTIMER_NOW();
+  //printf("DURATION: %d\n", duration);
 
   if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) {
     /* Anticipated duration too short or no scheduled rtimer task. Use PM0 */
+    leds_toggle(LEDS_GREEN);
     enter_pm0();
 
     /* We reach here when the interrupt context that woke us up has returned */
@@ -272,26 +282,26 @@ lpm_enter()
    */
   duration = lpm_exit_time - RTIMER_NOW();
 
-  if(duration < DEEP_SLEEP_PM1_THRESHOLD) {
+  //if(duration < DEEP_SLEEP_PM1_THRESHOLD) {
     /*
      * oops... The clock switch took some time and now the remaining sleep
      * duration is too short. Restore the clock source to the 32MHz XOSC and
      * abort the LPM attempt altogether. We can't drop to PM0,
      * we need to yield to main() since we may have events to service now.
      */
-    select_32_mhz_xosc();
+  //  select_32_mhz_xosc();
 
-    return;
-  } else if(duration >= DEEP_SLEEP_PM2_THRESHOLD && max_pm == 2) {
+  //  return;
+  //} else if(duration >= DEEP_SLEEP_PM2_THRESHOLD && max_pm == 2) {
     /* Long sleep duration and PM2 is allowed. Use it */
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM2;
-  } else {
+  //} else {
     /*
      * Anticipated duration too short for PM2 but long enough for PM1 and we
      * are allowed to use PM1
      */
-    REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM1;
-  }
+  //  REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM1;
+  //}
 
   /* We are only interested in IRQ energest while idle or in LPM */
   ENERGEST_IRQ_RESTORE(irq_energest);
@@ -317,7 +327,6 @@ lpm_enter()
     /* Event flag raised or rtimer inactive.
      * Turn on the 32MHz XOSC, restore PMCTL and abort */
     select_32_mhz_xosc();
-
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM0;
 
     /* Remember IRQ energest for next pass */
@@ -328,7 +337,7 @@ lpm_enter()
     /* All clear. Assert WFI and drop to PM1/2. This is now un-interruptible */
     assert_wfi();
   }
-
+  printf("WOKEUP\n");
   /*
    * We reach here after coming back from PM1/2. The interrupt context that
    * woke us up has returned. lpm_exit() has run, it has switched the system
