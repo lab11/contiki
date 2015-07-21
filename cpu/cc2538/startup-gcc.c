@@ -59,6 +59,7 @@ void gpio_port_b_isr(void);
 void gpio_port_c_isr(void);
 void gpio_port_d_isr(void);
 void rtimer_isr(void);
+void vtimer_isr(void);
 void cc2538_rf_rx_tx_isr(void);
 void cc2538_rf_err_isr(void);
 void udma_isr(void);
@@ -270,7 +271,7 @@ void(*const vectors[])(void) =
   cc2538_rf_err_isr,          /* 158 RFCORE Error */
   default_handler,            /* 159 AES */
   default_handler,            /* 160 PKA */
-  rtimer_isr,                 /* 161 SM Timer */
+  vtimer_isr,                 /* 161 SM Timer */
   default_handler,            /* 162 MACTimer */
 };
 /*---------------------------------------------------------------------------*/
