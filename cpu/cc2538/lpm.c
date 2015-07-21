@@ -262,14 +262,14 @@ lpm_enter()
   duration = lpm_exit_time - RTIMER_NOW();
   //printf("DURATION: %d\n", duration);
 
-  if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) {
-    /* Anticipated duration too short or no scheduled rtimer task. Use PM0 */
-    leds_toggle(LEDS_GREEN);
-    enter_pm0();
+  // if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) {
+  //   /* Anticipated duration too short or no scheduled rtimer task. Use PM0 */
+  //   leds_toggle(LEDS_GREEN);
+  //   enter_pm0();
 
-    /* We reach here when the interrupt context that woke us up has returned */
-    return;
-  }
+  //   /* We reach here when the interrupt context that woke us up has returned */
+  //   return;
+  // }
 
   /* If we reach here, we -may- (but may as well not) be dropping to PM1+. We
    * know the registered peripherals and RF are off so we can switch to the
@@ -323,20 +323,20 @@ lpm_enter()
    * Check if there is still a scheduled rtimer task and check for pending
    * events before going to Deep Sleep
    */
-  if(process_nevents() || rtimer_arch_next_trigger() == 0) {
-    /* Event flag raised or rtimer inactive.
-     * Turn on the 32MHz XOSC, restore PMCTL and abort */
-    select_32_mhz_xosc();
-    REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM0;
+  // if(process_nevents() || rtimer_arch_next_trigger() == 0) {
+  //   /* Event flag raised or rtimer inactive.
+  //    * Turn on the 32MHz XOSC, restore PMCTL and abort */
+  //   select_32_mhz_xosc();
+  //   REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM0;
 
-    /* Remember IRQ energest for next pass */
-    ENERGEST_IRQ_SAVE(irq_energest);
-    ENERGEST_ON(ENERGEST_TYPE_CPU);
-    ENERGEST_OFF(ENERGEST_TYPE_LPM);
-  } else {
+  //   /* Remember IRQ energest for next pass */
+  //   ENERGEST_IRQ_SAVE(irq_energest);
+  //   ENERGEST_ON(ENERGEST_TYPE_CPU);
+  //   ENERGEST_OFF(ENERGEST_TYPE_LPM);
+  // } else {
     /* All clear. Assert WFI and drop to PM1/2. This is now un-interruptible */
     assert_wfi();
-  }
+  // }
   printf("WOKEUP\n");
   /*
    * We reach here after coming back from PM1/2. The interrupt context that
