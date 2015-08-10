@@ -26,7 +26,7 @@ OBJDUMP_FLAGS += --disassemble --source --disassembler-options=force-thumb
 ifeq ($(SMALL),1)
   CFLAGS += -Os
 else
-  CFLAGS += -O2
+  CFLAGS += -Os
 endif
 
 ### If the user-specified a Node ID, pass a define

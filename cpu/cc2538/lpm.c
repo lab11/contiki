@@ -258,8 +258,8 @@ lpm_enter()
    * task, a Sleep Timer interrupt will fire and will wake us up.
    * Choose the most suitable PM based on anticipated deep sleep duration
    */
-  lpm_exit_time = rtimer_arch_next_trigger();
-  duration = lpm_exit_time - RTIMER_NOW();
+  //lpm_exit_time = rtimer_arch_next_trigger();
+  //duration = lpm_exit_time - RTIMER_NOW();
   //printf("DURATION: %d\n", duration);
 
   // if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) {
@@ -280,7 +280,7 @@ lpm_enter()
    * Switching the System Clock from the 32MHz XOSC to the 16MHz RC OSC may
    * have taken a while. Re-estimate sleep duration.
    */
-  duration = lpm_exit_time - RTIMER_NOW();
+  //duration = lpm_exit_time - RTIMER_NOW();
 
   //if(duration < DEEP_SLEEP_PM1_THRESHOLD) {
     /*
@@ -323,21 +323,21 @@ lpm_enter()
    * Check if there is still a scheduled rtimer task and check for pending
    * events before going to Deep Sleep
    */
-  // if(process_nevents() || rtimer_arch_next_trigger() == 0) {
-  //   /* Event flag raised or rtimer inactive.
-  //    * Turn on the 32MHz XOSC, restore PMCTL and abort */
-  //   select_32_mhz_xosc();
-  //   REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM0;
+  if(process_nevents() ) {
+    /* Event flag raised or rtimer inactive.
+     * Turn on the 32MHz XOSC, restore PMCTL and abort */
+    select_32_mhz_xosc();
+    REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM0;
 
-  //   /* Remember IRQ energest for next pass */
-  //   ENERGEST_IRQ_SAVE(irq_energest);
-  //   ENERGEST_ON(ENERGEST_TYPE_CPU);
-  //   ENERGEST_OFF(ENERGEST_TYPE_LPM);
-  // } else {
+    /* Remember IRQ energest for next pass */
+    ENERGEST_IRQ_SAVE(irq_energest);
+    ENERGEST_ON(ENERGEST_TYPE_CPU);
+    ENERGEST_OFF(ENERGEST_TYPE_LPM);
+  } else {
     /* All clear. Assert WFI and drop to PM1/2. This is now un-interruptible */
     assert_wfi();
-  // }
-  printf("WOKEUP\n");
+  }
+  //printf("WOKEUP\n");
   /*
    * We reach here after coming back from PM1/2. The interrupt context that
    * woke us up has returned. lpm_exit() has run, it has switched the system
