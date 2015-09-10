@@ -258,7 +258,7 @@ lpm_enter()
   lpm_current_time = VTIMER_NOW();
   duration = lpm_exit_time > lpm_current_time ? (lpm_exit_time - lpm_current_time) : (lpm_exit_time + (UINT32_MAX - lpm_current_time));
 
-  if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0 && !LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) {
+  if( (duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) && !LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) {
     /* Anticipated duration too short or no scheduled vtimer task. Use PM0 */
     enter_pm0();
     /* We reach here when the interrupt context that woke us up has returned */
@@ -288,13 +288,12 @@ lpm_enter()
     return;
   } else if( (duration >= DEEP_SLEEP_PM2_THRESHOLD || LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) && max_pm == 2) {
     /* Long sleep duration and PM2 is allowed. Use it */
-    //REG(SCB_SYSCTRL) |= SCB_SYSCTRL_SLEEPDEEP;
+    //leds_on(LEDS_BLUE);
+    REG(SCB_SYSCTRL) |= SCB_SYSCTRL_SLEEPDEEP;
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM2;
   } else {
-    /*
-     * Anticipated duration too short for PM2 but long enough for PM1 and we
-     * are allowed to use PM1
-     */
+     // Anticipated duration too short for PM2 but long enough for PM1 and we
+     // are allowed to use PM1
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM1;
   }
 
@@ -312,10 +311,10 @@ lpm_enter()
     /* Event flag raised or vtimer inactive.
      * Turn on the 32MHz XOSC, restore PMCTL and abort */
     select_32_mhz_xosc();
-
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM0;
   } else {
     /* All clear. Assert WFI and drop to PM1/2. This is now un-interruptible */
+
     assert_wfi();
   }
 
