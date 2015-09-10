@@ -44,7 +44,7 @@ void vtimer_arch_cancel() {
  *          time, in other words the task will be executed AT time \e t,
  *          not IN \e t ticks
  */
-void vtimer_arch_schedule(uint32_t t, uint32_t ticks) {
+void vtimer_arch_schedule(uint32_t t) {
   INTERRUPTS_DISABLE();
   uint32_t now;
   uint32_t st = t;
@@ -58,21 +58,22 @@ void vtimer_arch_schedule(uint32_t t, uint32_t ticks) {
 
   /*
    * New value must be 5 ticks in the future. The ST may tick once while we're
-   * writing the registers. We play it safe here and we add a bit of leeway
+   * writing the registers. We play it safe here and  add a bit of leeway.
+   * UINT math should wrap around the MAX, which should make our arithmetic always work.
    */
 
+  while((REG(SMWDTHROSC_STLOAD) & SMWDTHROSC_STLOAD_STLOAD) != 1) {};
   now = vtimer_arch_now();
-  if((uint32_t)(t-now) < 10 || (uint32_t)(t-now) > ticks ){
-      st = vtimer_arch_now() + 10;
+  if((uint32_t)(t-now) < 30){
+      st = vtimer_arch_now() + 30;
   }
-
-  while((REG(SMWDTHROSC_STLOAD) & SMWDTHROSC_STLOAD_STLOAD) != 1);
+  
   /* ST0 latches ST[1:3] and must be written last */
   REG(SMWDTHROSC_ST3) = (st >> 24) & 0x000000FF;
   REG(SMWDTHROSC_ST2) = (st >> 16) & 0x000000FF;
   REG(SMWDTHROSC_ST1) = (st >> 8) & 0x000000FF;
   REG(SMWDTHROSC_ST0) = st & 0x000000FF;
-
+  nvic_interrupt_unpend(NVIC_INT_SM_TIMER); // clear timer just in case
   /* Store the value. The LPM module will query us for it */
   next_trigger = st;
   INTERRUPTS_ENABLE();
