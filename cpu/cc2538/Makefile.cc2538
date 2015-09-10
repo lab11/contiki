@@ -26,7 +26,7 @@ OBJDUMP_FLAGS += --disassemble --source --disassembler-options=force-thumb
 ifeq ($(SMALL),1)
   CFLAGS += -Os
 else
-  CFLAGS += -O2
+  CFLAGS += -O1
 endif
 
 ### If the user-specified a Node ID, pass a define
@@ -54,6 +54,7 @@ CONTIKI_CPU_SOURCEFILES += dbg.c ieee-addr.c
 CONTIKI_CPU_SOURCEFILES += slip-arch.c slip.c
 CONTIKI_CPU_SOURCEFILES += gptimer.c
 CONTIKI_CPU_SOURCEFILES += i2c.c
+CONTIKI_CPU_SOURCEFILES += vtimer-arch.c
 
 
 DEBUG_IO_SOURCEFILES += dbg-printf.c dbg-snprintf.c dbg-sprintf.c strformat.c
