@@ -952,7 +952,6 @@ uint8_t cc2538_on_and_transmit(uint32_t initial_time) {
     while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
     ret = RADIO_TX_OK;
   }
-
   return ret;
 }
 
@@ -1006,34 +1005,33 @@ PROCESS_THREAD(cc2538_rf_process, ev, data)
 void
 cc2538_rf_rx_tx_isr(void)
 {
-
   if(REG(RFCORE_SFR_RFIRQF0) & RFCORE_XREG_RFIRQM0_SFD) {
     uint32_t sfd_time = VTIMER_NOW();
 
-    if( (REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE) // currently TX
-        && last_length > 0
-      ) {
+        if( (REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE) // currently TX
+            && last_length > 0
+          ) {
 
-      uint32_t diff = sfd_time - opo_initial_time;
-      //uint16_t chksum_bal;
-      uint32_t offset = (last_length-5)*4;
+          uint32_t diff = sfd_time - opo_initial_time;
+          //uint16_t chksum_bal;
+          uint32_t offset = (last_length-5)*4;
 
-      //chksum_bal = ((diff >> 16) & 0xFFFF) + (diff & 0xFFFF);
-      //chksum_bal = 0xFFFF - chksum_bal;
+          //chksum_bal = ((diff >> 16) & 0xFFFF) + (diff & 0xFFFF);
+          //chksum_bal = 0xFFFF - chksum_bal;
 
-      // Insert the time difference into the packet
-      REG(0x40088200+offset+ 0) = (diff >> 0) & 0xFF;
-      REG(0x40088200+offset+ 4) = (diff >> 8) & 0xFF;
-      REG(0x40088200+offset+ 8) = (diff >> 16) & 0xFF;
-      REG(0x40088200+offset+12) = (diff >> 24) & 0xFF;
+          // Insert the time difference into the packet
+          REG(0x40088200+offset+ 0) = (diff >> 0) & 0xFF;
+          REG(0x40088200+offset+ 4) = (diff >> 8) & 0xFF;
+          REG(0x40088200+offset+ 8) = (diff >> 16) & 0xFF;
+          REG(0x40088200+offset+12) = (diff >> 24) & 0xFF;
 
-      // Update the checksum balancer
-      //REG(0x40088200+offset+16) = (chksum_bal >> 8) & 0xFF;
-      //REG(0x40088200+offset+20) = (chksum_bal >> 0) & 0xFF;
+          // Update the checksum balancer
+          //REG(0x40088200+offset+16) = (chksum_bal >> 8) & 0xFF;
+          //REG(0x40088200+offset+20) = (chksum_bal >> 0) & 0xFF;
 
-      last_length = 0;
-      opo_initial_time = 0;
-    }
+          last_length = 0;
+          opo_initial_time = 0;
+        }
   }
 
   #ifdef SFD_INT_USED
