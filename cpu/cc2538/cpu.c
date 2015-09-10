@@ -36,37 +36,42 @@
  * Implementations of interrupt control on the cc2538 Cortex-M3 micro
  */
 /*---------------------------------------------------------------------------*/
-unsigned long __attribute__((naked))
-cpu_cpsie(void)
-{
-  unsigned long ret;
 
-  /* Read PRIMASK and enable interrupts */
-  __asm("    mrs     r0, PRIMASK\n"
-        "    cpsie   i\n"
-        "    bx      lr\n"
-        : "=r" (ret));
+/*
+ * Modfiied version of the original file that supports nesting INTERRUPT_DISABLES and INTERRUPT_ENABLES
+ * @author WIlliam Huang <wwhuang@umich.edu>
+*/
 
-  /* The inline asm returns, we never reach here.
-   * We add a return statement to keep the compiler happy */
-  return ret;
+#include "dev/leds.h"
+#include <stdint.h>
+static uint32_t interrupt_counter = 0;
+
+/* enable interrupts */
+unsigned long cpu_cpsie(void) {
+  if(interrupt_counter > 0) {interrupt_counter--;}
+
+  if(interrupt_counter == 0) {
+      /* enable interrupts */
+      leds_off(LEDS_GREEN);
+      __asm("cpsie   i\n");
+      return 1;
+  }
+  return 2;
 }
 /*---------------------------------------------------------------------------*/
-unsigned long __attribute__((naked))
-cpu_cpsid(void)
-{
-  unsigned long ret;
+/* disable interrupts */
+unsigned long cpu_cpsid(void) {
+    if(interrupt_counter < UINT32_MAX) {interrupt_counter++;}
+    else {return 0;}
 
-  /* Read PRIMASK and disable interrupts */
-  __asm("    mrs     r0, PRIMASK\n"
-        "    cpsid   i\n"
-        "    bx      lr\n"
-        : "=r" (ret));
-
-  /* The inline asm returns, we never reach here.
-   * We add a return statement to keep the compiler happy */
-  return ret;
+  if(interrupt_counter == 1) {
+      /* disable interrupts */
+      leds_on(LEDS_GREEN);
+      __asm("cpsid   i\n");
+      return 1;
+  }
+  return 2;
 }
-/*---------------------------------------------------------------------------*/
 
+/*---------------------------------------------------------------------------*/
 /** @} */
