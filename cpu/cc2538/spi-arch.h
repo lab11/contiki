@@ -42,6 +42,7 @@
 #define SPI_ARCH_H_
 
 #include "dev/ssi.h"
+#include "leds.h"
 
 #define SPI_WAITFORTxREADY() do { \
   while(!(REG(SSI0_BASE + SSI_SR) & SSI_SR_TNF)); \
