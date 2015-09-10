@@ -69,17 +69,13 @@ static volatile uint64_t rt_ticks_startup = 0, rt_ticks_epoch = 0;
 /**
  * \brief Arch-specific implementation of clock_init for the cc2538
  *
- * We initialise the SysTick to fire 128 interrupts per second, giving us a
- * value of 128 for CLOCK_SECOND
- *
  * We also initialise GPT0:Timer A, which is used by clock_delay_usec().
  * We use 16-bit range (individual), count-down, one-shot, no interrupts.
  * The system clock is at 16MHz giving us 62.5 nano sec ticks for Timer A.
  * Prescaled by 16 gives us a very convenient 1 tick per usec
  */
 void
-clock_init(void)
-{
+clock_init(void) {
   REG(SYSTICK_STRELOAD) = RELOAD_VALUE;
 
   /* System clock source, Enable */
