@@ -63,12 +63,11 @@ gpio_register_callback(gpio_callback_t f, uint8_t port, uint8_t pin)
  * \param mask Search callbacks associated with pins specified by this mask
  * \param port Search callbacks associated with this port. Here, port is
  * specified as a number between 0 and 3. Port A: 0, Port B: 1 etc */
-void
+inline void
 notify(uint8_t mask, uint8_t port)
 {
   uint8_t i;
   gpio_callback_t *f = &gpio_callbacks[port << 3];
-
   for(i = 0; i < 8; i++) {
     if(mask & (1 << i)) {
       if((*f) != NULL) {
@@ -79,41 +78,68 @@ notify(uint8_t mask, uint8_t port)
   }
 }
 /*---------------------------------------------------------------------------*/
-/** \brief Interrupt service routine for Port \a port
- * \param port Number between 0 and 3. Port A: 0, Port B: 1, etc.
- */
-static void
-gpio_port_isr(uint8_t port)
+/** \brief Interrupt service routine for Port A */
+void
+gpio_port_a_isr()
 {
-  uint32_t base;
-  uint8_t int_status, power_up_int_status;
-
   lpm_exit();
 
   ENERGEST_ON(ENERGEST_TYPE_IRQ);
 
-  base = GPIO_PORT_TO_BASE(port);
-  int_status = GPIO_GET_MASKED_INT_STATUS(base);
-  power_up_int_status = GPIO_GET_POWER_UP_INT_STATUS(port);
+  notify(REG(GPIO_A_BASE | GPIO_MIS), GPIO_A_NUM);
 
-  notify(int_status | power_up_int_status, port);
-
-  GPIO_CLEAR_INTERRUPT(base, int_status);
-  GPIO_CLEAR_POWER_UP_INTERRUPT(port, power_up_int_status);
+  GPIO_CLEAR_INTERRUPT(GPIO_A_BASE, 0xFF);
+  GPIO_CLEAR_POWER_UP_INTERRUPT(GPIO_A_NUM, 0xFF);
 
   ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
 /*---------------------------------------------------------------------------*/
-#define GPIO_PORT_ISR(lowercase_port, uppercase_port) \
-void \
-gpio_port_##lowercase_port##_isr(void) \
-{ \
-  gpio_port_isr(GPIO_##uppercase_port##_NUM); \
+/** \brief Interrupt service routine for Port B */
+void
+gpio_port_b_isr()
+{
+  lpm_exit();
+
+  ENERGEST_ON(ENERGEST_TYPE_IRQ);
+
+  notify(REG(GPIO_B_BASE | GPIO_MIS), GPIO_B_NUM);
+
+  GPIO_CLEAR_INTERRUPT(GPIO_B_BASE, 0xFF);
+  GPIO_CLEAR_POWER_UP_INTERRUPT(GPIO_B_NUM, 0xFF);
+
+  ENERGEST_OFF(ENERGEST_TYPE_IRQ);
 }
-GPIO_PORT_ISR(a, A)
-GPIO_PORT_ISR(b, B)
-GPIO_PORT_ISR(c, C)
-GPIO_PORT_ISR(d, D)
+/*---------------------------------------------------------------------------*/
+/** \brief Interrupt service routine for Port C */
+void
+gpio_port_c_isr()
+{
+  lpm_exit();
+
+  ENERGEST_ON(ENERGEST_TYPE_IRQ);
+  notify(REG(GPIO_C_BASE | GPIO_MIS), GPIO_C_NUM);
+
+  GPIO_CLEAR_INTERRUPT(GPIO_C_BASE, 0xFF);
+  GPIO_CLEAR_POWER_UP_INTERRUPT(GPIO_C_NUM, 0xFF);
+
+  ENERGEST_OFF(ENERGEST_TYPE_IRQ);
+}
+/*---------------------------------------------------------------------------*/
+/** \brief Interrupt service routine for Port D */
+void
+gpio_port_d_isr()
+{
+  lpm_exit();
+
+  ENERGEST_ON(ENERGEST_TYPE_IRQ);
+
+  notify(REG(GPIO_D_BASE | GPIO_MIS), GPIO_D_NUM);
+
+  GPIO_CLEAR_INTERRUPT(GPIO_D_BASE, 0xFF);
+  GPIO_CLEAR_POWER_UP_INTERRUPT(GPIO_D_NUM, 0xFF);
+
+  ENERGEST_OFF(ENERGEST_TYPE_IRQ);
+}
 /*---------------------------------------------------------------------------*/
 void
 gpio_init()
