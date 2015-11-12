@@ -11,8 +11,22 @@
  */
 
 #include "i2c.h"
-
+#include "sys/clock.h"
+//#include "cc2538-rf-debug.h"
 /*---------------------------------------------------------------------------*/
+const static uint32_t wait_barrier = 1000000;
+bool wait_i2c_free() {
+	uint32_t counter = 0;
+	while(i2c_master_busy()) {
+		clock_delay_usec(10);
+		if(++counter == wait_barrier) { 
+			//send_rf_debug("wait_i2c_free fail");
+			return false; 
+		}
+	} 
+	return true;
+}
+
 void
 i2c_init(uint8_t port_sda, uint8_t pin_sda, uint8_t port_scl, uint8_t pin_scl, uint32_t bus_speed)
 {
@@ -111,8 +125,7 @@ i2c_master_busy(void)
 	return REG(I2CM_STAT) & I2CM_STAT_BUSY;
 }
 /*---------------------------------------------------------------------------*/
-uint8_t
-i2c_master_error(void)
+uint8_t i2c_master_error(void)
 {
 	uint8_t temp = REG(I2CM_STAT);	//Get all status
 	if(temp & I2CM_STAT_BUSY) {		//No valid if BUSY bit is set
@@ -123,27 +136,25 @@ i2c_master_error(void)
 	return I2C_MASTER_ERR_NONE;
 }
 /*---------------------------------------------------------------------------*/
-uint8_t
-i2c_single_send(uint8_t slave_addr, uint8_t data)
-{
+uint8_t i2c_single_send(uint8_t slave_addr, uint8_t data) {
 	i2c_master_set_slave_address(slave_addr, I2C_SEND);
 	i2c_master_data_put(data);
 	i2c_master_command(I2C_MASTER_CMD_SINGLE_SEND);
-	while(i2c_master_busy()){
+	if(!wait_i2c_free()) {
+		return I2CM_STAT_FROZEN;
 	}
 	/* Return the STAT register of I2C module if error occured, I2C_MASTER_ERR_NONE otherwise */
 	return i2c_master_error();
 }
 /*---------------------------------------------------------------------------*/
-uint8_t
-i2c_single_receive(uint8_t slave_addr, uint8_t * data)
-{
+uint8_t i2c_single_receive(uint8_t slave_addr, uint8_t * data) {
 	uint32_t temp;
 
 	i2c_master_set_slave_address(slave_addr, I2C_RECEIVE);
 	i2c_master_command(I2C_MASTER_CMD_SINGLE_RECEIVE);
-	while(i2c_master_busy()) {
-	}
+
+	if(!wait_i2c_free()) { return I2CM_STAT_FROZEN; }
+
 	if((temp = i2c_master_error())) {
 		return temp;
 	} else {

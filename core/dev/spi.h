@@ -39,6 +39,7 @@
 #ifndef SPI_H_
 #define SPI_H_
 
+#include <stdbool.h>
 /* Define macros to use for checking SPI transmission status depending
    on if it is possible to wait for TX buffer ready. This is possible
    on for example MSP430 but not on AVR. */
@@ -55,6 +56,10 @@
 extern unsigned char spi_busy;
 
 void spi_init(void);
+bool spi_write_byte(uint8_t byte);
+bool spi_read_byte(uint8_t *buffer);
+bool spi_wait_done();
+bool spi_flush_buffer();
 
 /* Write one character to SPI */
 #define SPI_WRITE(data)                         \

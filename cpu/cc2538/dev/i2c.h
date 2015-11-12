@@ -10,18 +10,19 @@
  * \file
  * /cpu/cc2538/dev/i2c.h
  * Header file with declarations for the I2C Control module
- * 
+ *
  * \author
  * Mehdi Migault
  */
 #ifndef I2C_H_
 #define I2C_H_
- 
+
 #include "reg.h"
 #include "sys-ctrl.h"
 #include "gpio.h"
 #include "ioc.h"
 #include <stdio.h>		//For debug
+#include <stdbool.h>
 #include "clock.h"		//For temporisation
 /*---------------------------------------------------------------------------*/
 /** \name I2C Master commands
@@ -50,6 +51,7 @@
 #define I2CM_STAT_ARBLST	0x00000010
 #define I2CM_STAT_IDLE		0x00000020
 #define I2CM_STAT_BUSBSY	0x00000040
+#define I2CM_STAT_FROZEN	0xFF
 /** @} */
 /*---------------------------------------------------------------------------*/
 /** \name I2C registers
@@ -76,6 +78,8 @@
 /** \name I2C Functions
  * @{
  */
+
+bool wait_i2c_free(); // check to see if i2c frees up over ten seconds. if not, return false
 
 /**
  * \brief Initialise the I2C peripheral and pins

@@ -41,6 +41,10 @@
 #include "dev/spi.h"
 #include "dev/ssi.h"
 #include "dev/gpio.h"
+#include "clock.h"
+#include <stdbool.h>
+#include <stdint.h>
+//#include "cc2538-rf-debug.h"
 
 #define SPI_CLK_PORT_BASE        GPIO_PORT_TO_BASE(SPI_CLK_PORT)
 #define SPI_CLK_PIN_MASK         GPIO_PIN_MASK(SPI_CLK_PIN)
@@ -48,6 +52,9 @@
 #define SPI_MOSI_PIN_MASK        GPIO_PIN_MASK(SPI_MOSI_PIN)
 #define SPI_MISO_PORT_BASE       GPIO_PORT_TO_BASE(SPI_MISO_PORT)
 #define SPI_MISO_PIN_MASK        GPIO_PIN_MASK(SPI_MISO_PIN)
+
+
+const static uint32_t wait_barrier = 1000000;
 
 /**
  * \brief Initialize the SPI bus.
@@ -138,3 +145,66 @@ void spi_set_mode(uint32_t frame_format, uint32_t clock_polarity, uint32_t clock
   REG(SSI0_BASE + SSI_CR1) |= SSI_CR1_SSE;
 }
 /** @} */
+
+bool spi_wait_tx_ready() {
+  uint32_t counter = 0;
+  while(!(REG(SSI0_BASE + SSI_SR) & SSI_SR_TNF)) {
+    clock_delay_usec(10);
+    if(++counter == wait_barrier) {
+      //send_rf_debug("spi_wait_tx_ready fail"); 
+      return false; 
+    }
+  }
+  return true;
+}
+
+bool spi_wait_done() {
+  uint32_t counter = 0;
+  while(REG(SSI0_BASE + SSI_SR) & SSI_SR_BSY) {
+    clock_delay_usec(10);
+    if(++counter == wait_barrier) {
+      //send_rf_debug("spi_wait_done fail"); 
+      return false; 
+    }
+  }
+  return true;
+}
+
+bool spi_write_byte(uint8_t byte) {
+  if(!spi_wait_tx_ready()) {return false;}
+  SPI_TXBUF = byte;
+  if(!spi_wait_done()) {return false;}
+  return true;
+}
+
+bool spi_wait_rx_ready() {
+  uint32_t counter = 0;
+  while(!(REG(SSI0_BASE + SSI_SR) & SSI_SR_RNE)) {
+    clock_delay_usec(10);
+    if(++counter == wait_barrier) {
+      //send_rf_debug("spi_wait_rx_ready fail");
+      return false;
+    }
+  }
+  return true;
+}
+
+bool spi_read_byte(uint8_t *buffer) {
+  SPI_TXBUF = 0;
+  if(!spi_wait_rx_ready()) {return false;}
+  *buffer = SPI_RXBUF;
+  return true;
+}
+
+bool spi_flush_buffer() {
+  uint32_t counter = 0;
+  while (REG(SSI0_BASE + SSI_SR) & SSI_SR_RNE) {
+    SPI_RXBUF;
+    clock_delay_usec(10);
+    if(++counter == wait_barrier) {
+      //send_rf_debug("spi_flush_buffer fail");
+      return false;
+    }
+  }
+  return true;
+}
