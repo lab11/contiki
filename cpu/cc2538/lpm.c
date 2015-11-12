@@ -72,8 +72,8 @@ static unsigned long irq_energest = 0;
  * If duration < DEEP_SLEEP_PM2_THRESHOLD drop to PM1
  * else PM2.
  */
-#define DEEP_SLEEP_PM1_THRESHOLD    2
-#define DEEP_SLEEP_PM2_THRESHOLD    11
+#define DEEP_SLEEP_PM1_THRESHOLD    10
+#define DEEP_SLEEP_PM2_THRESHOLD    100
 /*---------------------------------------------------------------------------*/
 #define assert_wfi() do { asm("wfi"::); } while(0)
 /*---------------------------------------------------------------------------*/
@@ -229,6 +229,7 @@ lpm_exit()
 
   ENERGEST_ON(ENERGEST_TYPE_CPU);
   ENERGEST_OFF(ENERGEST_TYPE_LPM);
+
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -236,7 +237,6 @@ lpm_enter()
 {
   vtimer_clock_t lpm_exit_time;
   vtimer_clock_t duration;
-  vtimer_clock_t lpm_current_time;
   /*
    * If either the RF or the registered peripherals are on, dropping to PM1/2
    * would equal pulling the rug (32MHz XOSC) from under their feet. Thus, we
@@ -255,12 +255,12 @@ lpm_enter()
    * Choose the most suitable PM based on anticipated deep sleep duration
    */
   lpm_exit_time = vtimer_arch_next_trigger();
-  lpm_current_time = VTIMER_NOW();
-  duration = lpm_exit_time > lpm_current_time ? (lpm_exit_time - lpm_current_time) : (lpm_exit_time + (UINT32_MAX - lpm_current_time));
+  duration = lpm_exit_time - VTIMER_NOW();
 
-  if( (duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) && !LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) {
-    /* Anticipated duration too short or no scheduled vtimer task. Use PM0 */
+  if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) {
+    /* Anticipated duration too short or no scheduled rtimer task. Use PM0 */
     enter_pm0();
+
     /* We reach here when the interrupt context that woke us up has returned */
     return;
   }
@@ -274,10 +274,9 @@ lpm_enter()
    * Switching the System Clock from the 32MHz XOSC to the 16MHz RC OSC may
    * have taken a while. Re-estimate sleep duration.
    */
-  lpm_current_time = VTIMER_NOW();
-  duration = lpm_exit_time > lpm_current_time ? (lpm_exit_time - lpm_current_time) : (lpm_exit_time + (UINT32_MAX - lpm_current_time));
+  duration = lpm_exit_time - VTIMER_NOW();
 
-  if(duration < DEEP_SLEEP_PM1_THRESHOLD && !LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) {
+  if(duration < DEEP_SLEEP_PM1_THRESHOLD) {
     /*
      * oops... The clock switch took some time and now the remaining sleep
      * duration is too short. Restore the clock source to the 32MHz XOSC and
@@ -286,14 +285,15 @@ lpm_enter()
      */
     select_32_mhz_xosc();
     return;
-  } else if( (duration >= DEEP_SLEEP_PM2_THRESHOLD || LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP) && max_pm == 2) {
+  }
+  else if(duration >= DEEP_SLEEP_PM2_THRESHOLD && max_pm == 2) {
     /* Long sleep duration and PM2 is allowed. Use it */
-    //leds_on(LEDS_BLUE);
     REG(SCB_SYSCTRL) |= SCB_SYSCTRL_SLEEPDEEP;
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM2;
-  } else {
-     // Anticipated duration too short for PM2 but long enough for PM1 and we
-     // are allowed to use PM1
+  }
+  else {
+    /* Duration too short for PM2 but long enough for PM1 and we are allowed to use PM1 */
+    REG(SCB_SYSCTRL) |= SCB_SYSCTRL_SLEEPDEEP;
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM1;
   }
 
@@ -307,14 +307,13 @@ lpm_enter()
    * Check if there is still a scheduled vtimer task and check for pending
    * events before going to Deep Sleep
    */
-  if(process_nevents() || (vtimer_arch_next_trigger() == 0 && !LPM_CONF_ALLOW_INTERRUPT_ONLY_WAKEUP)){
+  if(process_nevents() || vtimer_arch_next_trigger() == 0){
     /* Event flag raised or vtimer inactive.
      * Turn on the 32MHz XOSC, restore PMCTL and abort */
     select_32_mhz_xosc();
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM0;
   } else {
     /* All clear. Assert WFI and drop to PM1/2. This is now un-interruptible */
-
     assert_wfi();
   }
 
