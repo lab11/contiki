@@ -245,7 +245,6 @@ get_rssi(void)
 
   /* Wait on RSSI_VALID */
   while((REG(RFCORE_XREG_RSSISTAT) & RFCORE_XREG_RSSISTAT_RSSI_VALID) == 0);
-
   rssi = (int8_t)(REG(RFCORE_XREG_RSSI) & RFCORE_XREG_RSSI_RSSI_VAL) - RSSI_OFFSET;
 
   /* If we were off, turn back off */
@@ -346,7 +345,6 @@ channel_clear(void)
 
   /* Wait on RSSI_VALID */
   while((REG(RFCORE_XREG_RSSISTAT) & RFCORE_XREG_RSSISTAT_RSSI_VALID) == 0);
-
   if(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_CCA) {
     cca = CC2538_RF_CCA_CLEAR;
   } else {
@@ -382,7 +380,6 @@ off(void)
 
   /* Wait for ongoing TX to complete (e.g. this could be an outgoing ACK) */
   while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
-
   CC2538_RF_CSP_ISFLUSHRX();
 
   /* Don't turn off if we are off as this will trigger a Strobe Error */
@@ -502,7 +499,6 @@ prepare(const void *payload, unsigned short payload_len)
    * is not still in progress before re-writing to the TX FIFO
    */
   while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
-
   if((rf_flags & RX_ACTIVE) == 0) {
     on();
   }
@@ -937,7 +933,6 @@ uint8_t cc2538_on_and_transmit(uint32_t initial_time) {
 /*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 
   CC2538_RF_CSP_ISTXON();
-
   counter = 0;
   while(!((REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE))
         && (counter++ < 3)) {
