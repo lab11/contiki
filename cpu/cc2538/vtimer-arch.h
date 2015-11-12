@@ -44,7 +44,7 @@ uint32_t vtimer_arch_now(void);
  */
 uint32_t vtimer_arch_next_trigger(void);
 
-void vtimer_arch_schedule(uint32_t t);
+void vtimer_arch_schedule(uint32_t t, uint32_t ticks);
 void vtimer_arch_init();
 void vtimer_isr();
 void vtimer_arch_debug();
