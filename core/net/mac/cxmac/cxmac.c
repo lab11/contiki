@@ -539,11 +539,9 @@ send_packet(void)
   /* By setting we_are_sending to one, we ensure that the rtimer
      powercycle interrupt do not interfere with us sending the packet. */
   we_are_sending = 1;
-  
+
   t0 = RTIMER_NOW();
   strobes = 0;
-
-  LEDS_ON(LEDS_BLUE);
 
   /* Send a train of strobes until the receiver answers with an ACK. */
 
@@ -673,7 +671,6 @@ send_packet(void)
 
   we_are_sending = 0;
 
-  LEDS_OFF(LEDS_BLUE);
   if(collisions == 0) {
     if(!is_broadcast && !got_strobe_ack) {
       return MAC_TX_NOACK;

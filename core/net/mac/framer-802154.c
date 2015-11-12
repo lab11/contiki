@@ -179,14 +179,8 @@ create_frame(int type, int do_create)
 
   } else if(packetbuf_hdralloc(len)) {
     frame802154_create(&params, packetbuf_hdrptr(), len);
-
-    PRINTF("15.4-OUT: %2X", params.fcf.frame_type);
-    PRINTADDR(params.dest_addr);
-    PRINTF("%d %u (%u)\n", len, packetbuf_datalen(), packetbuf_totlen());
-
     return len;
   } else {
-    PRINTF("15.4-OUT: too large header: %u\n", len);
     return FRAMER_FAILED;
   }
 }
