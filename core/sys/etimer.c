@@ -70,7 +70,7 @@ update_time(void)
     tdist = t->timer.start + t->timer.interval - now;
     for(t = t->next; t != NULL; t = t->next) {
       if(t->timer.start + t->timer.interval - now < tdist) {
-	tdist = t->timer.start + t->timer.interval - now;
+	      tdist = t->timer.start + t->timer.interval - now;
       }
     }
     next_expiration = now + tdist;
@@ -92,48 +92,48 @@ PROCESS_THREAD(etimer_process, ev, data)
       struct process *p = data;
 
       while(timerlist != NULL && timerlist->p == p) {
-	timerlist = timerlist->next;
+	      timerlist = timerlist->next;
       }
 
       if(timerlist != NULL) {
-	t = timerlist;
-	while(t->next != NULL) {
-	  if(t->next->p == p) {
-	    t->next = t->next->next;
-	  } else
-	    t = t->next;
-	}
+	      t = timerlist;
+	      while(t->next != NULL) {
+	        if(t->next->p == p) {
+	          t->next = t->next->next;
+	        } else
+	        t = t->next;
+	      }
       }
       continue;
     } else if(ev != PROCESS_EVENT_POLL) {
       continue;
     }
 
-  again:
+    again:
     
     u = NULL;
     
     for(t = timerlist; t != NULL; t = t->next) {
       if(timer_expired(&t->timer)) {
-	if(process_post(t->p, PROCESS_EVENT_TIMER, t) == PROCESS_ERR_OK) {
+	      if(process_post(t->p, PROCESS_EVENT_TIMER, t) == PROCESS_ERR_OK) {
 	  
-	  /* Reset the process ID of the event timer, to signal that the
-	     etimer has expired. This is later checked in the
-	     etimer_expired() function. */
-	  t->p = PROCESS_NONE;
-	  if(u != NULL) {
-	    u->next = t->next;
-	  } else {
-	    timerlist = t->next;
-	  }
-	  t->next = NULL;
-	  update_time();
-	  goto again;
-	} else {
-	  etimer_request_poll();
-	}
+	        /* Reset the process ID of the event timer, to signal that the
+	           etimer has expired. This is later checked in the
+	           etimer_expired() function. */
+	        t->p = PROCESS_NONE;
+	        if(u != NULL) {
+	          u->next = t->next;
+	        } else {
+	          timerlist = t->next;
+	        }
+	        t->next = NULL;
+	        update_time();
+	        goto again;
+	      } else {
+	        etimer_request_poll();
+	      }
       }
-      u = t;
+    u = t;
     }
     
   }
