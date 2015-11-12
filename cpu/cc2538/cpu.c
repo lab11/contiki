@@ -50,13 +50,11 @@ static uint32_t interrupt_counter = 0;
 unsigned long cpu_cpsie(void) {
   if(interrupt_counter > 0) {interrupt_counter--;}
 
-  if(interrupt_counter == 0) {
-      /* enable interrupts */
-      leds_off(LEDS_GREEN);
-      __asm("cpsie   i\n");
-      return 1;
-  }
-  return 2;
+  if(interrupt_counter != 0) { return 2; }
+
+  /* enable interrupts */
+  __asm("cpsie   i\n");
+  return 1;
 }
 /*---------------------------------------------------------------------------*/
 /* disable interrupts */
@@ -64,13 +62,11 @@ unsigned long cpu_cpsid(void) {
     if(interrupt_counter < UINT32_MAX) {interrupt_counter++;}
     else {return 0;}
 
-  if(interrupt_counter == 1) {
-      /* disable interrupts */
-      leds_on(LEDS_GREEN);
-      __asm("cpsid   i\n");
-      return 1;
-  }
-  return 2;
+    if(interrupt_counter != 1) { return 2; }
+
+    /* disable interrupts */
+    __asm("cpsid   i\n");
+    return 1;
 }
 
 /*---------------------------------------------------------------------------*/
