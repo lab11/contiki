@@ -102,7 +102,7 @@ create_frame(int type, int do_create)
   }
 
   /* Build the FCF. */
-  params.fcf.frame_type = packetbuf_attr(PACKETBUF_ATTR_FRAME_TYPE);
+  params.fcf.frame_type = FRAME802154_DATAFRAME;
   params.fcf.frame_pending = packetbuf_attr(PACKETBUF_ATTR_PENDING);
   if(packetbuf_holds_broadcast()) {
     params.fcf.ack_required = 0;
