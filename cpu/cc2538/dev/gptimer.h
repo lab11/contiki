@@ -445,7 +445,7 @@ int gate_gpt_pm0(uint8_t timer);
 */
 int gpt_register_callback(gptimer_callback_t f, uint8_t timer,
                       uint8_t subtimer, uint8_t interrupt_type);
-inline void clear_gpt_interrupt(uint32_t timer_base, uint32_t icr_mask);
+void clear_gpt_interrupt(uint32_t timer_base, uint32_t icr_mask);
 
 int gpt_configure_timer(uint8_t timer, uint32_t config);
 
