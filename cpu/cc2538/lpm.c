@@ -271,7 +271,7 @@ lpm_enter()
    * task, a Sleep Timer interrupt will fire and will wake us up.
    * Choose the most suitable PM based on anticipated deep sleep duration
    */
-    leds_toggle(LEDS_RED);
+    //leds_toggle(LEDS_RED);
   lpm_exit_time = rtimer_arch_next_trigger();
   duration = lpm_exit_time - RTIMER_NOW();
 
@@ -311,7 +311,7 @@ lpm_enter()
   //} else if(duration >= DEEP_SLEEP_PM2_THRESHOLD && max_pm == 2) {
   } else { // if no rtimer, or rtimer and duration is long, use PM2 always
     /* Long sleep duration and PM2 is allowed. Use it */
-    leds_toggle(LEDS_BLUE);
+   // leds_toggle(LEDS_BLUE);
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM2;
   } //else {
     /*
