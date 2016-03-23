@@ -44,6 +44,7 @@
 #include "rtimer-arch.h"
 #include "lpm.h"
 #include "reg.h"
+#include "leds.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -253,6 +254,9 @@ lpm_enter()
    * would equal pulling the rug (32MHz XOSC) from under their feet. Thus, we
    * only drop to PM0. PM0 is also used if max_pm==0.
    */
+    if (!periph_permit_pm1()) {
+        leds_toggle(LEDS_GREEN);
+    }
   if((REG(RFCORE_XREG_FSMSTAT0) & RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE) != 0
      || !periph_permit_pm1() || max_pm == 0) {
     enter_pm0();
@@ -267,10 +271,13 @@ lpm_enter()
    * task, a Sleep Timer interrupt will fire and will wake us up.
    * Choose the most suitable PM based on anticipated deep sleep duration
    */
+    leds_toggle(LEDS_RED);
   lpm_exit_time = rtimer_arch_next_trigger();
   duration = lpm_exit_time - RTIMER_NOW();
 
-  if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) {
+  //if(duration < DEEP_SLEEP_PM1_THRESHOLD || lpm_exit_time == 0) {
+  // it there's an rtimer and it's going to fire soon, don't bother sleeping
+  if(lpm_exit_time != 0 && duration < DEEP_SLEEP_PM1_THRESHOLD) {
     /* Anticipated duration too short or no scheduled rtimer task. Use PM0 */
     enter_pm0();
 
@@ -289,7 +296,9 @@ lpm_enter()
    */
   duration = lpm_exit_time - RTIMER_NOW();
 
-  if(duration < DEEP_SLEEP_PM1_THRESHOLD) {
+  //if(duration < DEEP_SLEEP_PM1_THRESHOLD) {
+  // if there's rtimer and duration too short b/c of clock switch
+  if (lpm_exit_time != 0 && duration < DEEP_SLEEP_PM1_THRESHOLD) {
     /*
      * oops... The clock switch took some time and now the remaining sleep
      * duration is too short. Restore the clock source to the 32MHz XOSC and
@@ -299,16 +308,18 @@ lpm_enter()
     select_32_mhz_xosc();
 
     return;
-  } else if(duration >= DEEP_SLEEP_PM2_THRESHOLD && max_pm == 2) {
+  //} else if(duration >= DEEP_SLEEP_PM2_THRESHOLD && max_pm == 2) {
+  } else { // if no rtimer, or rtimer and duration is long, use PM2 always
     /* Long sleep duration and PM2 is allowed. Use it */
+    leds_toggle(LEDS_BLUE);
     REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM2;
-  } else {
+  } //else {
     /*
      * Anticipated duration too short for PM2 but long enough for PM1 and we
      * are allowed to use PM1
      */
-    REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM1;
-  }
+    //REG(SYS_CTRL_PMCTL) = SYS_CTRL_PMCTL_PM1;
+  //}
 
   /* We are only interested in IRQ energest while idle or in LPM */
   ENERGEST_IRQ_RESTORE(irq_energest);
@@ -330,7 +341,9 @@ lpm_enter()
    * Check if there is still a scheduled rtimer task and check for pending
    * events before going to Deep Sleep
    */
-  if(process_nevents() || rtimer_arch_next_trigger() == 0) {
+  //if(process_nevents() || rtimer_arch_next_trigger() == 0) {
+  // if theres an event, handle it; don't care if theres an rtimer or not
+  if(process_nevents()) {
     /* Event flag raised or rtimer inactive.
      * Turn on the 32MHz XOSC, restore PMCTL and abort */
     select_32_mhz_xosc();
