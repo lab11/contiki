@@ -86,6 +86,21 @@ i2c_init(uint8_t port_sda, uint8_t pin_sda, uint8_t port_scl, uint8_t pin_scl,
   /* t the master clock frequency */
   i2c_set_frequency(bus_speed);
 }
+
+void
+i2c_disable(uint8_t port_sda, uint8_t pin_sda, uint8_t port_scl, uint8_t pin_scl)
+{
+    GPIO_SOFTWARE_CONTROL(GPIO_PORT_TO_BASE(port_sda), GPIO_PIN_MASK(pin_sda));
+    GPIO_SOFTWARE_CONTROL(GPIO_PORT_TO_BASE(port_scl), GPIO_PIN_MASK(pin_scl));
+    GPIO_SET_OUTPUT(GPIO_PORT_TO_BASE(port_sda), GPIO_PIN_MASK(pin_sda));
+    GPIO_SET_OUTPUT(GPIO_PORT_TO_BASE(port_scl), GPIO_PIN_MASK(pin_scl));
+    GPIO_SET_PIN(GPIO_PORT_TO_BASE(port_sda), GPIO_PIN_MASK(pin_sda));
+    GPIO_SET_PIN(GPIO_PORT_TO_BASE(port_scl), GPIO_PIN_MASK(pin_scl));
+    ioc_set_sel(port_sda, pin_sda, 0x0);
+    ioc_set_sel(port_scl, pin_scl, 0x0);
+    i2c_master_disable();
+}
+
 /*---------------------------------------------------------------------------*/
 void
 i2c_master_enable(void)

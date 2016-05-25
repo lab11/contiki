@@ -123,6 +123,9 @@
 void i2c_init(uint8_t port_sda, uint8_t pin_sda, uint8_t port_scl,
               uint8_t pin_scl, uint32_t bus_speed);
 
+void i2c_disable(uint8_t port_sda, uint8_t pin_sda, 
+                 uint8_t port_scl, uint8_t pin_scl);
+
 /** \brief Enable master I2C module */
 void i2c_master_enable(void);
 
