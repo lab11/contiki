@@ -55,6 +55,7 @@
 #include "opo.h"
 
 #include <string.h>
+#include <stdbool.h>
 /*---------------------------------------------------------------------------*/
 #define CHECKSUM_LEN 2
 
@@ -1028,12 +1029,13 @@ cc2538_rf_rx_tx_isr(void)
           opo_initial_time = 0;
         }
   }
-
+  bool needsPoll = false;
+  // Okay so it really feels like TXDONE never gets cal
   #ifdef SFD_INT_USED
   if(REG(RFCORE_SFR_RFIRQF0) & RFCORE_SFR_RFIRQF0_SFD) {
     SFD_HANDLER.callback();
-  } else {
-    process_poll(&cc2538_rf_process);
+  } else {  
+    needsPoll = true;
   }
   #endif
 
@@ -1041,9 +1043,13 @@ cc2538_rf_rx_tx_isr(void)
   if(REG(RFCORE_SFR_RFIRQF1) & RFCORE_SFR_RFIRQF1_TXDONE) {
     RF_TXDONE_HANDLER.callback();
   } else {
-    process_poll(&cc2538_rf_process);
+    needsPoll = true;
   }
   #endif
+
+  if(needsPoll) {
+    process_poll(&cc2538_rf_process);
+  }
 
   #ifndef SFD_INT_USED
     #ifndef RF_TXDONE_INT_USED
